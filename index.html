@@ -4,42 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lidera Flow</title>
-    <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-      body { font-family: 'Inter', sans-serif; }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-      .dark ::-webkit-scrollbar-thumb { background: #3f3f46; }
-      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-      .dark ::-webkit-scrollbar-thumb:hover { background: #52525b; }
-    </style>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              gold: {
-                50: '#fffbeb',
-                100: '#fef3c7',
-                200: '#fde68a',
-                300: '#fcd34d',
-                400: '#fbbf24',
-                500: '#f59e0b',
-                600: '#d97706',
-                700: '#b45309',
-                800: '#92400e',
-                900: '#78350f',
-                950: '#451a03',
-              }
-            }
-          }
-        }
-      }
-    </script>
   <script type="importmap">
 {
   "imports": {
@@ -49,12 +14,15 @@
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
     "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.0",
     "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.1"
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.2.6"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
