@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Download, Printer, FileText, CheckCircle2 } from 'lucide-react';
+import { Printer, FileText } from 'lucide-react';
 
 interface ReportsProps {
   transactions: Transaction[];
