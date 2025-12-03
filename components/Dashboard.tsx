@@ -13,31 +13,37 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode }) => {
+  // Determine date range from data to set sensible defaults
+  const currentYear = new Date().getFullYear();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedYear, setSelectedYear] = useState(currentYear);
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
 
   // Filter transactions based on selection
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const date = new Date(t.dataCompetencia);
-      const monthMatch = date.getMonth() === selectedMonth;
-      const yearMatch = date.getFullYear() === selectedYear;
+      // Robust date parsing
+      const dateParts = t.dataCompetencia.split('-');
+      // Assuming ISO YYYY-MM-DD
+      const tYear = parseInt(dateParts[0]);
+      const tMonth = parseInt(dateParts[1]) - 1; // 0-indexed month
+
+      const monthMatch = tMonth === selectedMonth;
+      const yearMatch = tYear === selectedYear;
       const accountMatch = selectedAccount === 'all' || t.accountId === selectedAccount;
       return monthMatch && yearMatch && accountMatch;
     });
   }, [transactions, selectedMonth, selectedYear, selectedAccount]);
 
-  // Overall Balance Calculation (Not filtered by date, but by account)
+  // Overall Balance Calculation (Global - Not filtered by date)
   const currentTotalBalance = useMemo(() => {
-    // Start with initial balances
     let total = accounts
       .filter(a => selectedAccount === 'all' || a.id === selectedAccount)
       .reduce((acc, curr) => acc + curr.initialBalance, 0);
 
-    // Add all historical transactions up to today for selected account
     transactions.forEach(t => {
       if (selectedAccount !== 'all' && t.accountId !== selectedAccount) return;
+      // Calculate balance based on 'Realizado' status
       if (t.status === 'Pago' || t.status === 'Recebido') {
         if (t.tipo === 'Entrada') total += t.valorRealizado;
         else total -= t.valorRealizado;
@@ -66,7 +72,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
     return {
       totalIncome,
       totalExpense,
-      balance: currentTotalBalance, // This is total balance, not just period balance
+      balance: currentTotalBalance, 
       periodBalance: totalIncome - totalExpense,
       pendingIncome,
       pendingExpense
@@ -85,10 +91,11 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
       .slice(0, 5);
   }, [filteredTransactions]);
 
-  // History Data (Last 6 Months)
+  // History Data (Last 6 Months logic)
   const historyData = useMemo(() => {
     const data = [];
-    const today = new Date();
+    const today = new Date(); // Use actual date for history endpoint
+    
     for(let i = 5; i >= 0; i--) {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const monthName = d.toLocaleString('pt-BR', { month: 'short' });
@@ -121,11 +128,15 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
     const data = [];
     let runningBalance = currentTotalBalance;
     const today = new Date();
+    today.setHours(0,0,0,0);
     
     // Sort future transactions by date
     const futureTransactions = transactions
       .filter(t => {
-        const tDate = new Date(t.dataVencimento);
+        // Robust date parse for comparison
+        const [y, m, d] = t.dataVencimento.split('-').map(Number);
+        const tDate = new Date(y, m-1, d);
+
         return tDate >= today && 
                (selectedAccount === 'all' || t.accountId === selectedAccount) &&
                (t.status === 'A pagar' || t.status === 'A receber');
@@ -135,13 +146,14 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
     // Group by day for the next few entries
     data.push({ date: 'Hoje', saldo: runningBalance });
     
-    // Simple projection logic
     let tempBalance = runningBalance;
-    futureTransactions.slice(0, 10).forEach(t => {
+    // Take next 10 relevant transactions for visual simplicity
+    futureTransactions.slice(0, 15).forEach(t => {
        if (t.tipo === 'Entrada') tempBalance += t.valorPrevisto;
        else tempBalance -= t.valorPrevisto;
        
-       const dateLabel = new Date(t.dataVencimento).toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'});
+       const [y, m, d] = t.dataVencimento.split('-');
+       const dateLabel = `${d}/${m}`;
        data.push({ date: dateLabel, saldo: tempBalance });
     });
     
@@ -189,7 +201,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
                 className="bg-transparent outline-none cursor-pointer"
               >
-                 {[2024, 2025, 2026].map(y => (
+                 {/* Generate year range based on data or static */}
+                 {[currentYear-1, currentYear, currentYear+1].map(y => (
                     <option key={y} value={y} className={darkMode ? 'bg-zinc-900' : 'bg-white'}>{y}</option>
                  ))}
               </select>
@@ -215,18 +228,18 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className={`p-6 rounded-xl border ${cardBg}`}>
           <div className="flex items-center justify-between mb-4">
-            <span className={subText}>Saldo Acumulado</span>
+            <span className={subText}>Saldo Atual (Global)</span>
             <Wallet className={darkMode ? 'text-yellow-500' : 'text-blue-500'} size={20} />
           </div>
           <div className={`text-2xl font-bold ${metrics.balance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
             {formatCurrency(metrics.balance)}
           </div>
-          <div className={`text-xs mt-1 ${subText}`}>Todas as contas</div>
+          <div className={`text-xs mt-1 ${subText}`}>Considerando todas as contas</div>
         </div>
 
         <div className={`p-6 rounded-xl border ${cardBg}`}>
           <div className="flex items-center justify-between mb-4">
-            <span className={subText}>Receitas (Mês)</span>
+            <span className={subText}>Receitas ({new Date(0, selectedMonth).toLocaleString('pt-BR', {month:'short'})})</span>
             <ArrowUpCircle className="text-emerald-500" size={20} />
           </div>
           <div className={`text-2xl font-bold ${textColor}`}>
@@ -239,7 +252,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
 
         <div className={`p-6 rounded-xl border ${cardBg}`}>
           <div className="flex items-center justify-between mb-4">
-            <span className={subText}>Despesas (Mês)</span>
+            <span className={subText}>Despesas ({new Date(0, selectedMonth).toLocaleString('pt-BR', {month:'short'})})</span>
             <ArrowDownCircle className="text-red-500" size={20} />
           </div>
           <div className={`text-2xl font-bold ${textColor}`}>
@@ -252,7 +265,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
 
         <div className={`p-6 rounded-xl border ${cardBg}`}>
           <div className="flex items-center justify-between mb-4">
-            <span className={subText}>Resultado do Período</span>
+            <span className={subText}>Resultado ({new Date(0, selectedMonth).toLocaleString('pt-BR', {month:'short'})})</span>
             <DollarSign className={darkMode ? 'text-yellow-500' : 'text-blue-500'} size={20} />
           </div>
           <div className={`text-2xl font-bold ${metrics.periodBalance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -286,7 +299,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
 
         {/* Projection Chart */}
         <div className={`p-6 rounded-xl border ${cardBg}`}>
-           <h3 className={`font-semibold mb-6 ${textColor}`}>Projeção de Fluxo de Caixa (30 dias)</h3>
+           <h3 className={`font-semibold mb-6 ${textColor}`}>Projeção de Fluxo de Caixa (Próximos dias)</h3>
            <div className="h-64">
              <ResponsiveContainer width="100%" height="100%">
                <LineChart data={projectionData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
@@ -308,6 +321,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className={`lg:col-span-2 p-6 rounded-xl border ${cardBg}`}>
            <h3 className={`font-semibold mb-6 ${textColor}`}>Top Categorias de Despesa ({new Date(selectedYear, selectedMonth).toLocaleString('pt-BR', {month:'long'})})</h3>
+           {categoryData.length > 0 ? (
            <div className="h-64">
              <ResponsiveContainer width="100%" height="100%">
                <BarChart data={categoryData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
@@ -327,11 +341,15 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
                </BarChart>
              </ResponsiveContainer>
            </div>
+           ) : (
+            <div className="h-64 flex items-center justify-center opacity-50">Sem dados neste período.</div>
+           )}
         </div>
 
         <div className={`p-6 rounded-xl border ${cardBg}`}>
           <h3 className={`font-semibold mb-6 ${textColor}`}>Distribuição</h3>
           <div className="h-64">
+             {categoryData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -351,6 +369,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
                 <Legend iconType="circle" wrapperStyle={{fontSize: '11px'}}/>
               </PieChart>
             </ResponsiveContainer>
+            ) : (
+                <div className="h-full flex items-center justify-center opacity-50">Sem dados.</div>
+            )}
           </div>
         </div>
       </div>

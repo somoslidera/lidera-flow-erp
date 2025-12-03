@@ -28,9 +28,21 @@ export interface Transaction {
   status: TransactionStatus;
 }
 
+export interface CategoryItem {
+  id: string;
+  name: string;
+  type: 'Receita' | 'Despesa';
+}
+
+export interface EntityItem {
+  id: string;
+  name: string;
+  type: 'Cliente' | 'Fornecedor' | 'Ambos';
+}
+
 export interface AppSettings {
-  categories: string[];
-  entities: string[];
+  categories: CategoryItem[];
+  entities: EntityItem[];
   paymentMethods: string[];
   costCenters: string[];
 }

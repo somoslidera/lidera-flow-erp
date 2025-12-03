@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Search, Trash2, Edit2, X, Upload } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Plus, Search, Trash2, Edit2, X, Upload, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Transaction, AppSettings, TransactionType, TransactionStatus, Account } from '../types';
 
 interface TransactionsProps {
@@ -13,20 +13,31 @@ interface TransactionsProps {
   onBulkAdd: (transactions: Omit<Transaction, 'id'>[]) => void;
 }
 
+type SortField = 'dataVencimento' | 'descricao' | 'valor' | 'entidade';
+type SortDirection = 'asc' | 'desc';
+
 const Transactions: React.FC<TransactionsProps> = ({ 
   transactions, accounts, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd 
 }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Sorting State
+  const [sortField, setSortField] = useState<SortField>('dataVencimento');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Initial Form State
   const initialFormState = {
     dataLancamento: new Date().toISOString().split('T')[0],
     dataVencimento: new Date().toISOString().split('T')[0],
     tipo: 'Saída' as TransactionType,
-    categoria: settings.categories[0] || '',
-    entidade: settings.entities[0] || '',
+    categoria: '',
+    entidade: '',
     produtoServico: '',
     centroCusto: settings.costCenters[0] || '',
     formaPagamento: settings.paymentMethods[0] || '',
@@ -73,6 +84,48 @@ const Transactions: React.FC<TransactionsProps> = ({
     setIsModalOpen(true);
   };
 
+  // --- Sorting & Filtering ---
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const filteredAndSortedData = useMemo(() => {
+    // 1. Filter
+    const filtered = transactions.filter(t => 
+      t.descricao.toLowerCase().includes(filter.toLowerCase()) ||
+      t.entidade.toLowerCase().includes(filter.toLowerCase()) ||
+      t.categoria.toLowerCase().includes(filter.toLowerCase())
+    );
+
+    // 2. Sort
+    return filtered.sort((a, b) => {
+      let valA: any = a[sortField as keyof Transaction];
+      let valB: any = b[sortField as keyof Transaction];
+
+      if (sortField === 'valor') {
+        valA = a.status === 'Pago' || a.status === 'Recebido' ? a.valorRealizado : a.valorPrevisto;
+        valB = b.status === 'Pago' || b.status === 'Recebido' ? b.valorRealizado : b.valorPrevisto;
+      }
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [transactions, filter, sortField, sortDirection]);
+
+  // --- Pagination Logic ---
+  const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
+  const paginatedData = filteredAndSortedData.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // --- CSV Import ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -83,46 +136,40 @@ const Transactions: React.FC<TransactionsProps> = ({
       parseCSV(csvData);
     };
     reader.readAsText(file);
-    // Reset input
     e.target.value = '';
   };
 
   const parseCSV = (csv: string) => {
     const lines = csv.split('\n');
-    // Find the header line for transactions (ignoring top metadata if present)
     const headerIndex = lines.findIndex(line => line.includes('Data Lanç.') || line.includes('Data Venc.'));
     
     if (headerIndex === -1) {
-      alert('Formato CSV inválido. Não foi possível encontrar os cabeçalhos das transações.');
+      alert('Formato CSV inválido. Cabeçalhos não encontrados.');
       return;
     }
 
     const newTransactions: Omit<Transaction, 'id'>[] = [];
     
-    // Process only lines after header
     for (let i = headerIndex + 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-
-      // Handle CSV parsing considering quoted fields with commas
-      // Removed unused matches variable
-      
       const cols = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
 
-      // Mapping based on the provided CSV structure:
-      // 0: Data Lanç., 1: Data Venc., 2: Tipo, 3: Categoria, 4: Entidade, 5: Produto, 6: Centro Custo, 7: Forma Pgto, 8: Descricao, 9: Valor Prev, 10: Valor Real, ...
-      
       if (cols.length < 10) continue;
 
+      // Robust Date Parsing (DD/MM/YYYY to YYYY-MM-DD)
       const parseDate = (d: string) => {
         if (!d) return new Date().toISOString().split('T')[0];
-        const [day, month, year] = d.split('/');
-        return `${year}-${month}-${day}`;
+        // Handle "02/10/2025" or "2025-10-02"
+        if (d.includes('/')) {
+            const [day, month, year] = d.split('/');
+            if (day && month && year) return `${year}-${month}-${day}`;
+        }
+        return d; 
       };
 
       const parseMoney = (v: string) => {
         if (!v) return 0;
-        // Remove . (thousands) and replace , with . (decimal)
         return parseFloat(v.replace(/\./g, '').replace(',', '.'));
       };
 
@@ -130,7 +177,7 @@ const Transactions: React.FC<TransactionsProps> = ({
         const trans: Omit<Transaction, 'id'> = {
           dataLancamento: parseDate(cols[0]),
           dataVencimento: parseDate(cols[1]),
-          tipo: cols[2] as TransactionType,
+          tipo: (cols[2] as string).startsWith('S') ? 'Saída' : 'Entrada' as TransactionType,
           categoria: cols[3] || 'Geral',
           entidade: cols[4] || 'Não informado',
           produtoServico: cols[5] || '',
@@ -142,7 +189,7 @@ const Transactions: React.FC<TransactionsProps> = ({
           dataPagamento: cols[11] ? parseDate(cols[11]) : undefined,
           dataCompetencia: cols[12] ? parseDate(cols[12]) : parseDate(cols[0]),
           status: cols[13] as TransactionStatus,
-          accountId: accounts[0]?.id // Default to first account
+          accountId: accounts[0]?.id 
         };
         newTransactions.push(trans);
       } catch (err) {
@@ -151,7 +198,7 @@ const Transactions: React.FC<TransactionsProps> = ({
     }
 
     if (newTransactions.length > 0) {
-      if (window.confirm(`Foram encontradas ${newTransactions.length} transações. Deseja importar?`)) {
+      if (window.confirm(`Foram encontradas ${newTransactions.length} transações. Importar?`)) {
         onBulkAdd(newTransactions);
       }
     } else {
@@ -159,11 +206,7 @@ const Transactions: React.FC<TransactionsProps> = ({
     }
   };
 
-  const filteredData = transactions.filter(t => 
-    t.descricao.toLowerCase().includes(filter.toLowerCase()) ||
-    t.entidade.toLowerCase().includes(filter.toLowerCase())
-  );
-
+  // --- Render Helpers ---
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -172,13 +215,6 @@ const Transactions: React.FC<TransactionsProps> = ({
       const [y,m,d] = dateStr.split('-');
       return `${d}/${m}/${y}`;
   }
-
-  // Styles
-  const cardBg = darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200';
-  const tableHeadBg = darkMode ? 'bg-zinc-800/50' : 'bg-slate-50';
-  const textColor = darkMode ? 'text-zinc-100' : 'text-slate-800';
-  const subText = darkMode ? 'text-zinc-400' : 'text-slate-500';
-  const inputBg = darkMode ? 'bg-zinc-950 border-zinc-700 text-white' : 'bg-white border-slate-300 text-slate-900';
 
   const getStatusColor = (status: string) => {
     switch(status) {
@@ -191,6 +227,31 @@ const Transactions: React.FC<TransactionsProps> = ({
     }
   };
 
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-30" />;
+    return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  };
+
+  // Styles
+  const cardBg = darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200';
+  const tableHeadBg = darkMode ? 'bg-zinc-800/50' : 'bg-slate-50';
+  const textColor = darkMode ? 'text-zinc-100' : 'text-slate-800';
+  const subText = darkMode ? 'text-zinc-400' : 'text-slate-500';
+  const inputBg = darkMode ? 'bg-zinc-950 border-zinc-700 text-white' : 'bg-white border-slate-300 text-slate-900';
+
+  // Available lists for Modal based on type
+  const availableCategories = settings.categories.filter(c => {
+    if (formData.tipo === 'Entrada') return c.type === 'Receita';
+    return c.type === 'Despesa';
+  });
+
+  const availableEntities = settings.entities.filter(e => {
+      // Show all or filter strictly? Usually show all or filter by type
+      // Let's filter slightly for DX
+      if (formData.tipo === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
+      return e.type === 'Fornecedor' || e.type === 'Ambos';
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -199,26 +260,15 @@ const Transactions: React.FC<TransactionsProps> = ({
           <p className={subText}>Gerencie suas entradas e saídas</p>
         </div>
         <div className="flex gap-2">
-          {/* CSV Upload Button */}
           <div className="relative">
-            <input 
-              type="file" 
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
+            <input type="file" accept=".csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
             <button className={`h-full p-2 px-4 rounded-lg border flex items-center gap-2 ${darkMode ? 'border-zinc-700 text-zinc-300 hover:bg-zinc-800' : 'border-slate-300 text-slate-600 hover:bg-slate-50'}`}>
               <Upload size={18} />
               <span className="hidden md:inline">Importar CSV</span>
             </button>
           </div>
-          
           <button 
-            onClick={() => {
-              setEditingId(null);
-              setFormData(initialFormState);
-              setIsModalOpen(true);
-            }}
+            onClick={() => { setEditingId(null); setFormData(initialFormState); setIsModalOpen(true); }}
             className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
             <Plus size={18} />
@@ -227,44 +277,74 @@ const Transactions: React.FC<TransactionsProps> = ({
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      {/* Filters & Controls */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
         <div className="relative flex-1 max-w-md">
           <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
           <input 
             type="text"
-            placeholder="Buscar por descrição ou entidade..."
+            placeholder="Buscar..."
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }} // Reset page on filter
             className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
           />
+        </div>
+        <div className="flex items-center gap-2">
+           <span className={`text-sm ${subText}`}>Itens por página:</span>
+           <select 
+              value={itemsPerPage} 
+              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+              className={`p-2 rounded-lg border outline-none ${inputBg}`}
+           >
+             <option value={10}>10</option>
+             <option value={25}>25</option>
+             <option value={50}>50</option>
+             <option value={100}>100</option>
+           </select>
         </div>
       </div>
 
       {/* Table */}
-      <div className={`rounded-xl border overflow-hidden ${cardBg}`}>
+      <div className={`rounded-xl border overflow-hidden ${cardBg} shadow-sm`}>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className={`text-xs uppercase font-semibold ${tableHeadBg} ${subText}`}>
               <tr>
-                <th className="px-6 py-4">Data Venc.</th>
-                <th className="px-6 py-4">Descrição</th>
+                <th className="px-6 py-4 cursor-pointer hover:text-blue-500" onClick={() => handleSort('dataVencimento')}>
+                    <div className="flex items-center gap-1">Vencimento <SortIcon field="dataVencimento" /></div>
+                </th>
+                <th className="px-6 py-4 cursor-pointer hover:text-blue-500" onClick={() => handleSort('descricao')}>
+                    <div className="flex items-center gap-1">Descrição <SortIcon field="descricao" /></div>
+                </th>
                 <th className="px-6 py-4">Categoria</th>
-                <th className="px-6 py-4">Entidade</th>
-                <th className="px-6 py-4 text-right">Valor</th>
+                <th className="px-6 py-4 cursor-pointer hover:text-blue-500" onClick={() => handleSort('entidade')}>
+                    <div className="flex items-center gap-1">Entidade <SortIcon field="entidade" /></div>
+                </th>
+                <th className="px-6 py-4">C. Custo</th>
+                <th className="px-6 py-4">Conta</th>
+                <th className="px-6 py-4 text-right cursor-pointer hover:text-blue-500" onClick={() => handleSort('valor')}>
+                     <div className="flex items-center justify-end gap-1">Valor <SortIcon field="valor" /></div>
+                </th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className={`divide-y ${darkMode ? 'divide-zinc-800' : 'divide-slate-200'}`}>
-              {filteredData.map((t) => (
+              {paginatedData.map((t) => {
+                const accountName = accounts.find(a => a.id === t.accountId)?.name || '-';
+                const isPaid = t.status === 'Pago' || t.status === 'Recebido';
+                return (
                 <tr key={t.id} className={`group transition-colors ${darkMode ? 'hover:bg-zinc-800/30' : 'hover:bg-slate-50'}`}>
                   <td className={`px-6 py-4 font-medium ${textColor}`}>{formatDate(t.dataVencimento)}</td>
-                  <td className={`px-6 py-4 ${textColor}`}>{t.descricao}</td>
+                  <td className={`px-6 py-4 ${textColor}`}>
+                      <div className="truncate max-w-[200px]" title={t.descricao}>{t.descricao}</div>
+                  </td>
                   <td className={`px-6 py-4 ${subText}`}>{t.categoria}</td>
                   <td className={`px-6 py-4 ${subText}`}>{t.entidade}</td>
+                  <td className={`px-6 py-4 ${subText} text-xs`}>{t.centroCusto}</td>
+                  <td className={`px-6 py-4 ${subText} text-xs`}>{accountName}</td>
                   <td className={`px-6 py-4 text-right font-medium ${t.tipo === 'Entrada' ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {t.tipo === 'Saída' ? '-' : '+'} {formatCurrency(t.status === 'Pago' || t.status === 'Recebido' ? t.valorRealizado : t.valorPrevisto)}
+                    {t.tipo === 'Saída' ? '-' : '+'} {formatCurrency(isPaid ? t.valorRealizado : t.valorPrevisto)}
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(t.status)}`}>
@@ -282,16 +362,36 @@ const Transactions: React.FC<TransactionsProps> = ({
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
-          {filteredData.length === 0 && (
-            <div className={`p-8 text-center ${subText}`}>Nenhum lançamento encontrado.</div>
-          )}
+        </div>
+        {/* Pagination Controls */}
+        <div className={`p-4 border-t flex items-center justify-between ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+           <div className={`text-sm ${subText}`}>
+              Mostrando {Math.min(filteredAndSortedData.length, (currentPage - 1) * itemsPerPage + 1)} até {Math.min(filteredAndSortedData.length, currentPage * itemsPerPage)} de {filteredAndSortedData.length} registros
+           </div>
+           <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className={`p-2 rounded-lg border disabled:opacity-50 ${darkMode ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-50'}`}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span className={`text-sm font-medium ${textColor}`}>Página {currentPage} de {totalPages || 1}</span>
+              <button 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className={`p-2 rounded-lg border disabled:opacity-50 ${darkMode ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-50'}`}
+              >
+                <ChevronRight size={16} />
+              </button>
+           </div>
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className={`w-full max-w-3xl rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto ${cardBg}`}>
@@ -300,25 +400,31 @@ const Transactions: React.FC<TransactionsProps> = ({
                 <h3 className={`text-xl font-bold ${textColor}`}>
                   {editingId ? 'Editar Lançamento' : 'Novo Lançamento'}
                 </h3>
-                <button type="button" onClick={() => setIsModalOpen(false)} className={subText}>
-                  <X size={24} />
-                </button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className={subText}><X size={24} /></button>
               </div>
               
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Tipo */}
-                <div className="md:col-span-2 flex gap-4 mb-2">
-                   <label className="flex items-center gap-2 cursor-pointer">
-                     <input type="radio" name="tipo" value="Entrada" checked={formData.tipo === 'Entrada'} onChange={() => setFormData({...formData, tipo: 'Entrada'})} className="accent-emerald-500"/>
-                     <span className="text-emerald-500 font-medium">Entrada</span>
-                   </label>
-                   <label className="flex items-center gap-2 cursor-pointer">
-                     <input type="radio" name="tipo" value="Saída" checked={formData.tipo === 'Saída'} onChange={() => setFormData({...formData, tipo: 'Saída'})} className="accent-red-500"/>
-                     <span className="text-red-500 font-medium">Saída</span>
-                   </label>
+                {/* Tipo Switch */}
+                <div className="md:col-span-2 flex justify-center mb-4">
+                  <div className={`flex p-1 rounded-lg border ${darkMode ? 'bg-zinc-950 border-zinc-800' : 'bg-slate-100 border-slate-200'}`}>
+                    <button 
+                      type="button"
+                      onClick={() => setFormData({...formData, tipo: 'Entrada', categoria: ''})}
+                      className={`px-6 py-2 rounded-md text-sm font-bold transition-colors ${formData.tipo === 'Entrada' ? 'bg-emerald-500 text-white shadow' : subText}`}
+                    >
+                      Entrada
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setFormData({...formData, tipo: 'Saída', categoria: ''})}
+                      className={`px-6 py-2 rounded-md text-sm font-bold transition-colors ${formData.tipo === 'Saída' ? 'bg-red-500 text-white shadow' : subText}`}
+                    >
+                      Saída
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-1 md:col-span-2">
                   <label className={`text-xs font-medium ${subText}`}>Descrição</label>
                   <input required className={`w-full p-2 rounded border ${inputBg}`} value={formData.descricao} onChange={e => setFormData({...formData, descricao: e.target.value})} />
                 </div>
@@ -333,14 +439,32 @@ const Transactions: React.FC<TransactionsProps> = ({
                 <div className="space-y-1">
                   <label className={`text-xs font-medium ${subText}`}>Entidade</label>
                   <select className={`w-full p-2 rounded border ${inputBg}`} value={formData.entidade} onChange={e => setFormData({...formData, entidade: e.target.value})}>
-                     {settings.entities.map(e => <option key={e} value={e}>{e}</option>)}
+                     <option value="">Selecione...</option>
+                     {availableEntities.map(e => <option key={e.id} value={e.name}>{e.name}</option>)}
+                     {/* Fallback for imported data that might not be in settings */}
+                     {!availableEntities.find(e => e.name === formData.entidade) && formData.entidade && (
+                        <option value={formData.entidade}>{formData.entidade}</option>
+                     )}
                   </select>
                 </div>
 
                 <div className="space-y-1">
                   <label className={`text-xs font-medium ${subText}`}>Categoria</label>
                   <select className={`w-full p-2 rounded border ${inputBg}`} value={formData.categoria} onChange={e => setFormData({...formData, categoria: e.target.value})}>
-                     {settings.categories.map(c => <option key={c} value={c}>{c}</option>)}
+                     <option value="">Selecione...</option>
+                     {availableCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                     {/* Fallback */}
+                     {!availableCategories.find(c => c.name === formData.categoria) && formData.categoria && (
+                        <option value={formData.categoria}>{formData.categoria}</option>
+                     )}
+                  </select>
+                </div>
+                
+                 <div className="space-y-1">
+                  <label className={`text-xs font-medium ${subText}`}>Centro de Custo</label>
+                  <select className={`w-full p-2 rounded border ${inputBg}`} value={formData.centroCusto} onChange={e => setFormData({...formData, centroCusto: e.target.value})}>
+                     <option value="">Selecione...</option>
+                     {settings.costCenters.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
 

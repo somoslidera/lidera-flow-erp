@@ -7,14 +7,23 @@ export const MOCK_ACCOUNTS: Account[] = [
 
 export const MOCK_SETTINGS: AppSettings = {
   categories: [
-    'Despesas administrativas', 'Despesas esporádicas', 'Despesas fixas', 
-    'Despesas operacionais', 'Receita de assessoria', 'Receita de consultoria', 
-    'Receita de eventos', 'Receita de ferramentas', 'Receita de mentoria'
+    { id: 'c1', name: 'Despesas administrativas', type: 'Despesa' },
+    { id: 'c2', name: 'Despesas operacionais', type: 'Despesa' },
+    { id: 'c3', name: 'Despesas fixas', type: 'Despesa' },
+    { id: 'c4', name: 'Receita de serviços', type: 'Receita' },
+    { id: 'c5', name: 'Receita de consultoria', type: 'Receita' },
+    { id: 'c6', name: 'Receita de mentoria', type: 'Receita' }
   ],
   entities: [
-    'A Lenha', 'AppSheet', 'Alice Salazar', 'Ágil Disc', 'Mercado Livre', 
-    'Google Workspace', 'Rose Portal Advocacia', 'Vitória', 'Ferrão', 
-    'Douglas Marcenaria'
+    { id: 'e1', name: 'A Lenha', type: 'Fornecedor' },
+    { id: 'e2', name: 'AppSheet', type: 'Fornecedor' },
+    { id: 'e3', name: 'Alice Salazar', type: 'Cliente' },
+    { id: 'e4', name: 'Ágil Disc', type: 'Fornecedor' },
+    { id: 'e5', name: 'Mercado Livre', type: 'Fornecedor' },
+    { id: 'e6', name: 'Google Workspace', type: 'Fornecedor' },
+    { id: 'e7', name: 'Rose Portal Advocacia', type: 'Cliente' },
+    { id: 'e8', name: 'Vitória', type: 'Cliente' },
+    { id: 'e9', name: 'Ferrão', type: 'Fornecedor' }
   ],
   paymentMethods: [
     'Dinheiro', 'Boleto', 'Pix', 'Cartão de Crédito [Lidera]', 
