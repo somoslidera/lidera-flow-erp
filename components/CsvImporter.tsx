@@ -289,14 +289,78 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
 
   const downloadTemplate = () => {
     // Create CSV template with examples (using Portuguese headers for user-friendly export)
-    const headers = SYSTEM_FIELDS.map(f => f.label).join(',');
+    // Helper to escape CSV values (add quotes if contains comma, quote, or newline)
+    // Also quote numeric values with comma (Brazilian format) to ensure proper parsing
+    const escapeCsvValue = (value: string): string => {
+      if (value === '') return '';
+      // Always quote values with commas (like "1100,00" for Brazilian currency)
+      // or if contains quote, newline, or special characters
+      if (value.includes(',') || value.includes('"') || value.includes('\n') || 
+          value.includes('[') || value.includes(']') || value.includes('|')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
+    const headers = SYSTEM_FIELDS.map(f => escapeCsvValue(f.label)).join(',');
+    
+    // Ensure examples match SYSTEM_FIELDS order exactly (14 fields)
     const examples = [
-      ['02/10/2025', '02/10/2025', 'Entrada', 'Receita de serviços', 'Cia da Fruta', 'Consultoria', 'Consultoria', 'Pix', 'Consultoria Mensal', '1100,00', '1100,00', '05/10/2025', '05/10/2025', 'Recebido'],
-      ['22/09/2025', '10/10/2025', 'Saída', 'Despesas operacionais', 'Google Workspace', '', 'Ferramentas operacionais', 'Cartão de Crédito [Lidera]', 'Google Workspace [2 usuários]', '100,88', '100,88', '10/10/2025', '10/10/2025', 'Pago'],
-      ['28/09/2025', '20/10/2025', 'Entrada', 'Receita de mentoria', 'Savana Imóveis', 'Mentoria', '', 'Pix', 'Mentoria | A Jornada do Líder 1/9', '200,00', '0,00', '', '20/10/2025', 'A receber']
+      [
+        '02/10/2025',                    // issueDate - Data de Lançamento
+        '02/10/2025',                    // dueDate - Data de Vencimento
+        'Entrada',                       // type - Tipo
+        'Receita de serviços',           // category - Categoria
+        'Cia da Fruta',                  // entity - Entidade
+        'Consultoria',                   // productService - Produto ou Serviço
+        'Consultoria',                   // costCenter - Centro de Custo
+        'Pix',                           // paymentMethod - Forma de Pagamento
+        'Consultoria Mensal',            // description - Descrição
+        '1100,00',                       // expectedAmount - Valor Previsto
+        '1100,00',                       // actualAmount - Valor Realizado
+        '05/10/2025',                    // paymentDate - Data de Pagamento/Recebimento
+        '05/10/2025',                    // accrualDate - Data de Competência
+        'Recebido'                       // status - Status
+      ],
+      [
+        '22/09/2025',                    // issueDate
+        '10/10/2025',                    // dueDate
+        'Saída',                         // type
+        'Despesas operacionais',         // category
+        'Google Workspace',              // entity
+        '',                              // productService
+        'Ferramentas operacionais',      // costCenter
+        'Cartão de Crédito [Lidera]',    // paymentMethod
+        'Google Workspace [2 usuários]', // description
+        '100,88',                        // expectedAmount
+        '100,88',                        // actualAmount
+        '10/10/2025',                    // paymentDate
+        '10/10/2025',                    // accrualDate
+        'Pago'                           // status
+      ],
+      [
+        '28/09/2025',                    // issueDate
+        '20/10/2025',                    // dueDate
+        'Entrada',                       // type
+        'Receita de mentoria',           // category
+        'Savana Imóveis',                // entity
+        'Mentoria',                      // productService
+        '',                              // costCenter
+        'Pix',                           // paymentMethod
+        'Mentoria | A Jornada do Líder 1/9', // description
+        '200,00',                        // expectedAmount
+        '0,00',                          // actualAmount
+        '',                              // paymentDate
+        '20/10/2025',                    // accrualDate
+        'A receber'                      // status
+      ]
     ];
 
-    const csvContent = [headers, ...examples.map(row => row.join(','))].join('\n');
+    const csvContent = [
+      headers,
+      ...examples.map(row => row.map(escapeCsvValue).join(','))
+    ].join('\n');
+    
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' }); // BOM for Excel
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
