@@ -372,6 +372,7 @@ const CashFlowReport: React.FC<CashFlowReportProps> = ({
                   </td>
                   {Object.keys(groupedPeriods).sort((a, b) => parseInt(a) - parseInt(b)).map(yearStr => {
                     const year = parseInt(yearStr);
+                    const yearColSpan = Object.keys(groupedPeriods[year] || {}).length * 3;
                     return (
                       <React.Fragment key={year}>
                         {expandedYears.has(year) && Object.keys(groupedPeriods[year]).sort((a, b) => parseInt(a) - parseInt(b)).map((quarterStr) => {
@@ -407,12 +408,13 @@ const CashFlowReport: React.FC<CashFlowReportProps> = ({
                         );
                       })}
                       {!expandedYears.has(year) && (
-                        <td colSpan={Object.keys(groupedPeriods[year]).length * 3} className={`px-2 py-2 text-center text-xs ${subText} border-r ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+                        <td colSpan={yearColSpan} className={`px-2 py-2 text-center text-xs ${subText} border-r ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
                           -
                         </td>
                       )}
                     </React.Fragment>
-                  ))}
+                  );
+                  })}
                   <td className={`px-4 py-3 text-right text-sm font-medium ${totals.totalIncome > 0 ? 'text-emerald-500' : subText} border-r ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
                     {formatCurrency(totals.totalIncome)}
                   </td>
@@ -433,6 +435,7 @@ const CashFlowReport: React.FC<CashFlowReportProps> = ({
               </td>
               {Object.keys(groupedPeriods).sort((a, b) => parseInt(a) - parseInt(b)).map(yearStr => {
                 const year = parseInt(yearStr);
+                const yearColSpan = Object.keys(groupedPeriods[year] || {}).length * 3;
                 return (
                   <React.Fragment key={year}>
                     {expandedYears.has(year) && Object.keys(groupedPeriods[year]).sort((a, b) => parseInt(a) - parseInt(b)).map((quarterStr) => {
@@ -468,12 +471,13 @@ const CashFlowReport: React.FC<CashFlowReportProps> = ({
                     );
                   })}
                   {!expandedYears.has(year) && (
-                    <td colSpan={Object.keys(groupedPeriods[year]).length * 3} className={`px-2 py-2 text-center text-xs ${subText} border-r ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+                    <td colSpan={yearColSpan} className={`px-2 py-2 text-center text-xs ${subText} border-r ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
                       -
                     </td>
                   )}
                 </React.Fragment>
-              ))}
+              );
+              })}
               <td className={`px-4 py-3 text-right text-sm font-bold ${textColor} border-r ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
                 {formatCurrency(timePeriods.reduce((acc: number, period: string) => acc + calculateColumnTotals(period).totalIncome, 0))}
               </td>
