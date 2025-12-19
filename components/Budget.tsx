@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Budget, BudgetItem, CategoryItem, SubcategoryItem } from '../types';
-import { Plus, Trash2, Edit2, X, Check, Calendar, DollarSign, Save, Copy } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Calendar, Save, Copy } from 'lucide-react';
 
 interface BudgetProps {
   budgets: Budget[];

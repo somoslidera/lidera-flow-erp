@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { Budget, Transaction, CategoryItem, SubcategoryItem } from '../types';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  Legend, ComposedChart, Line, Cell
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  Legend, ComposedChart, Line
 } from 'recharts';
-import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Calendar, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, DollarSign, Calendar } from 'lucide-react';
 
 interface BudgetVsActualProps {
   budgets: Budget[];
@@ -389,7 +389,7 @@ const BudgetVsActual: React.FC<BudgetVsActualProps> = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {comparisonData.map((item, index) => (
+                    {comparisonData.map((item) => (
                       <tr 
                         key={`${item.categoryId}_${item.subcategoryId || 'none'}`}
                         className={`border-b ${darkMode ? 'border-zinc-800' : 'border-slate-100'} ${item.variance > 0 ? (darkMode ? 'bg-red-900/20' : 'bg-red-50') : ''}`}

@@ -455,6 +455,95 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+  // Helper function to get category/subcategory names
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId) return 'Sem categoria';
+    return categories.find(c => c.id === categoryId)?.name || categoryId;
+  };
+
+  const getSubcategoryName = (subcategoryId?: string) => {
+    if (!subcategoryId) return null;
+    return subcategories.find(s => s.id === subcategoryId)?.name || subcategoryId;
+  };
+
+  // Expense data by subcategory
+  const expenseBySubcategory = useMemo(() => {
+    const subcategoryTotals: {
+      [key: string]: {
+        categoryId: string;
+        subcategoryId?: string;
+        categoryName: string;
+        subcategoryName: string;
+        total: number;
+        count: number;
+      };
+    } = {};
+
+    filteredTransactions
+      .filter(t => t.type === 'Saída' && t.status === 'Pago')
+      .forEach(t => {
+        const key = t.subcategoryId 
+          ? `${t.categoryId || 'unknown'}_${t.subcategoryId}`
+          : `${t.categoryId || 'unknown'}_none`;
+        
+        if (!subcategoryTotals[key]) {
+          subcategoryTotals[key] = {
+            categoryId: t.categoryId || 'unknown',
+            subcategoryId: t.subcategoryId,
+            categoryName: getCategoryName(t.categoryId),
+            subcategoryName: getSubcategoryName(t.subcategoryId) || 'Sem subcategoria',
+            total: 0,
+            count: 0,
+          };
+        }
+        
+        subcategoryTotals[key].total += t.actualAmount;
+        subcategoryTotals[key].count += 1;
+      });
+
+    return Object.values(subcategoryTotals)
+      .sort((a, b) => b.total - a.total);
+  }, [filteredTransactions, categories, subcategories]);
+
+  // Revenue data by subcategory
+  const revenueBySubcategory = useMemo(() => {
+    const subcategoryTotals: {
+      [key: string]: {
+        categoryId: string;
+        subcategoryId?: string;
+        categoryName: string;
+        subcategoryName: string;
+        total: number;
+        count: number;
+      };
+    } = {};
+
+    filteredTransactions
+      .filter(t => t.type === 'Entrada' && (t.status === 'Recebido' || t.status === 'Pago'))
+      .forEach(t => {
+        const key = t.subcategoryId 
+          ? `${t.categoryId || 'unknown'}_${t.subcategoryId}`
+          : `${t.categoryId || 'unknown'}_none`;
+        
+        if (!subcategoryTotals[key]) {
+          subcategoryTotals[key] = {
+            categoryId: t.categoryId || 'unknown',
+            subcategoryId: t.subcategoryId,
+            categoryName: getCategoryName(t.categoryId),
+            subcategoryName: getSubcategoryName(t.subcategoryId) || 'Sem subcategoria',
+            total: 0,
+            count: 0,
+          };
+        }
+        
+        subcategoryTotals[key].total += t.actualAmount;
+        subcategoryTotals[key].count += 1;
+      });
+
+    return Object.values(subcategoryTotals)
+      .sort((a, b) => b.total - a.total);
+  }, [filteredTransactions, categories, subcategories]);
+
   return (
     <div className="space-y-6">
       {/* Filters Header */}
@@ -1084,7 +1173,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
       )}
 
       {activeTab === 'expenses' && (() => {
-        const totalExpenses = expenseBySubcategory.reduce((sum, item) => sum + item.total, 0);
+        const totalExpenses = expenseBySubcategory.reduce((sum: number, item) => sum + item.total, 0);
 
         return (
           <div className="space-y-6">
@@ -1130,7 +1219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                 <div className={`text-2xl font-bold ${textColor}`}>
                   {formatCurrency(
                     expenseBySubcategory.length > 0 
-                      ? totalExpenses / expenseBySubcategory.reduce((sum, item) => sum + item.count, 0)
+                      ? totalExpenses / expenseBySubcategory.reduce((sum: number, item) => sum + item.count, 0)
                       : 0
                   )}
                 </div>
@@ -1160,7 +1249,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {expenseBySubcategory.slice(0, 10).map((_, index) => (
+                        {expenseBySubcategory.slice(0, 10).map((_, index: number) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -1230,7 +1319,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                     </tr>
                   </thead>
                   <tbody>
-                    {expenseBySubcategory.map((item, index) => (
+                    {expenseBySubcategory.map((item) => (
                       <tr key={`${item.categoryId}_${item.subcategoryId || 'none'}`} className={`border-b ${darkMode ? 'border-zinc-800' : 'border-slate-100'}`}>
                         <td className={`py-3 px-4 ${textColor} font-medium`}>{item.categoryName}</td>
                         <td className={`py-3 px-4 ${textColor}`}>{item.subcategoryName}</td>
@@ -1251,7 +1340,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                         {formatCurrency(totalExpenses)}
                       </td>
                       <td className={`py-3 px-4 text-right ${textColor}`}>
-                        {expenseBySubcategory.reduce((sum, item) => sum + item.count, 0)}
+                        {expenseBySubcategory.reduce((sum: number, item) => sum + item.count, 0)}
                       </td>
                       <td className={`py-3 px-4 text-right ${textColor}`}>100%</td>
                     </tr>
@@ -1264,7 +1353,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
       })()}
 
       {activeTab === 'revenue' && (() => {
-        const totalRevenue = revenueBySubcategory.reduce((sum, item) => sum + item.total, 0);
+        const totalRevenue = revenueBySubcategory.reduce((sum: number, item) => sum + item.total, 0);
 
         return (
           <div className="space-y-6">
@@ -1310,12 +1399,12 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                 <div className={`text-2xl font-bold ${textColor}`}>
                   {formatCurrency(
                     revenueBySubcategory.length > 0 
-                      ? totalRevenue / revenueBySubcategory.reduce((sum, item) => sum + item.count, 0)
+                      ? totalRevenue / revenueBySubcategory.reduce((sum: number, item) => sum + item.count, 0)
                       : 0
                   )}
                 </div>
                 <div className={`text-xs mt-1 ${subText}`}>
-                  {revenueBySubcategory.reduce((sum, item) => sum + item.count, 0)} transações
+                  {revenueBySubcategory.reduce((sum: number, item) => sum + item.count, 0)} transações
                 </div>
               </div>
             </div>
@@ -1340,7 +1429,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                         fill="#8884d8"
                         dataKey="value"
                       >
-                        {revenueBySubcategory.slice(0, 10).map((_, index) => (
+                        {revenueBySubcategory.slice(0, 10).map((_, index: number) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -1410,7 +1499,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                     </tr>
                   </thead>
                   <tbody>
-                    {revenueBySubcategory.map((item, index) => (
+                    {revenueBySubcategory.map((item) => (
                       <tr key={`${item.categoryId}_${item.subcategoryId || 'none'}`} className={`border-b ${darkMode ? 'border-zinc-800' : 'border-slate-100'}`}>
                         <td className={`py-3 px-4 ${textColor} font-medium`}>{item.categoryName}</td>
                         <td className={`py-3 px-4 ${textColor}`}>{item.subcategoryName}</td>
@@ -1431,7 +1520,7 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, budgets =
                         {formatCurrency(totalRevenue)}
                       </td>
                       <td className={`py-3 px-4 text-right ${textColor}`}>
-                        {revenueBySubcategory.reduce((sum, item) => sum + item.count, 0)}
+                        {revenueBySubcategory.reduce((sum: number, item) => sum + item.count, 0)}
                       </td>
                       <td className={`py-3 px-4 text-right ${textColor}`}>100%</td>
                     </tr>
