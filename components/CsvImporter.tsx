@@ -3,8 +3,8 @@ import { Upload, X, Download, FileSpreadsheet, CheckCircle, AlertCircle } from '
 import { Transaction, TransactionType, TransactionStatus } from '../types';
 
 interface CsvImporterProps {
-  onImport: (transactions: Omit<Transaction, 'id'>[]) => void;
-  onImportEntities?: (entities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>) => void;
+  onImport: (transactions: Omit<Transaction, 'id'>[]) => void | Promise<void>;
+  onImportEntities?: (entities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>) => void | Promise<void>;
   existingTransactions: Transaction[];
   existingEntities?: Array<{ name: string; type?: string }>;
   accounts: Array<{ id: string; name: string }>;
@@ -48,6 +48,8 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
   const [customTag, setCustomTag] = useState('');
   const [fileName, setFileName] = useState('');
   const [importEntities, setImportEntities] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0, message: '' });
 
   // Styles
   const cardBg = darkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-slate-200';
@@ -196,7 +198,12 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
     return isNaN(parsed) ? 0 : parsed;
   };
 
-  const processCsvImport = () => {
+  const processCsvImport = async () => {
+    if (isImporting) return; // Prevent double-click
+    
+    setIsImporting(true);
+    setImportProgress({ current: 0, total: allCsvRows.length, message: 'Processando CSV...' });
+    
     const newTransactions: Omit<Transaction, 'id'>[] = [];
     const errors: string[] = [];
     let skippedCount = 0;
@@ -216,14 +223,29 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
     
     if (missingFields.length > 0) {
       setImportErrors([`Campos obrigatórios não mapeados: ${missingFields.map(f => f.label).join(', ')}`]);
+      setIsImporting(false);
+      setImportProgress({ current: 0, total: 0, message: '' });
       return;
     }
 
     // Extract unique entities from CSV
     const entityMap = new Map<string, { name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos' }>();
     
-    allCsvRows.forEach((row, rowIndex) => {
-      if (row.length < 2) return;
+    // Process rows with progress updates
+    for (let rowIndex = 0; rowIndex < allCsvRows.length; rowIndex++) {
+      const row = allCsvRows[rowIndex];
+      if (row.length < 2) continue;
+      
+      // Update progress every 10 rows
+      if (rowIndex % 10 === 0 || rowIndex === allCsvRows.length - 1) {
+        setImportProgress({ 
+          current: rowIndex + 1, 
+          total: allCsvRows.length, 
+          message: `Processando linha ${rowIndex + 1} de ${allCsvRows.length}...` 
+        });
+        // Allow UI to update
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
 
       const getCol = (field: string): string | undefined => {
         const idx = fieldMapping[field];
@@ -325,10 +347,16 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
       }
 
       newTransactions.push(transaction);
-    });
+    }
 
     // Process entities
     if (importEntities && entityMap.size > 0 && onImportEntities) {
+      setImportProgress({ 
+        current: allCsvRows.length, 
+        total: allCsvRows.length, 
+        message: `Processando ${entityMap.size} entidades...` 
+      });
+      
       const entitiesToImport = Array.from(entityMap.values()).map(entity => {
         const existing = existingEntities.find(e => 
           e.name.toLowerCase() === entity.name.toLowerCase()
@@ -350,24 +378,51 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
         };
       }).filter(e => e !== null) as Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>;
       
-      if (entitiesToImport.length > 0) {
-        onImportEntities(entitiesToImport);
+      if (entitiesToImport.length > 0 && onImportEntities) {
+        try {
+          const result = onImportEntities(entitiesToImport);
+          if (result instanceof Promise) {
+            await result;
+          }
+        } catch (error) {
+          console.error("Error importing entities:", error);
+          errors.push("Erro ao importar entidades");
+        }
       }
     }
 
     setImportErrors(errors);
+    setIsImporting(false);
+    setImportProgress({ current: 0, total: 0, message: '' });
 
     if (errors.length === 0 && newTransactions.length > 0) {
-      onImport(newTransactions);
-      setIsModalOpen(false);
-      const entityMsg = importEntities && entityMap.size > 0 
-        ? `\n${entityMap.size} entidades processadas.`
-        : '';
-      alert(`✅ Importação concluída!\n\n${newTransactions.length} transações importadas.\n${skippedCount} duplicatas ignoradas.${updatedCount > 0 ? `\n${updatedCount} atualizadas.` : ''}${entityMsg}${errors.length > 0 ? `\n${errors.length} erros encontrados.` : ''}`);
+      setImportProgress({ 
+        current: newTransactions.length, 
+        total: newTransactions.length, 
+        message: 'Salvando transações...' 
+      });
+      
+      try {
+        const result = onImport(newTransactions);
+        if (result instanceof Promise) {
+          await result;
+        }
+        setIsModalOpen(false);
+        const entityMsg = importEntities && entityMap.size > 0 
+          ? `\n${entityMap.size} entidades processadas.`
+          : '';
+        alert(`✅ Importação concluída!\n\n${newTransactions.length} transações importadas.\n${skippedCount} duplicatas ignoradas.${updatedCount > 0 ? `\n${updatedCount} atualizadas.` : ''}${entityMsg}${errors.length > 0 ? `\n${errors.length} erros encontrados.` : ''}`);
+      } catch (error) {
+        console.error("Error importing transactions:", error);
+        setImportErrors([...errors, "Erro ao salvar transações no Firebase"]);
+        setIsImporting(false);
+      }
     } else if (errors.length > 0) {
       setImportErrors(errors);
+      setIsImporting(false);
     } else {
       alert('Nenhuma transação válida encontrada para importar.');
+      setIsImporting(false);
     }
   };
 
@@ -694,22 +749,61 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
               </div>
             </div>
 
-            <div className={`p-6 border-t flex justify-end gap-3 ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-100 text-slate-600'}`}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={processCsvImport}
-                className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-              >
-                <CheckCircle size={18} />
-                Confirmar Importação ({allCsvRows.length} registros)
-              </button>
+            <div className={`p-6 border-t space-y-4 ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+              {/* Progress Bar */}
+              {isImporting && importProgress.total > 0 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className={textColor}>{importProgress.message || 'Processando...'}</span>
+                    <span className={subText}>
+                      {importProgress.current} / {importProgress.total}
+                    </span>
+                  </div>
+                  <div className={`w-full h-2 rounded-full overflow-hidden ${darkMode ? 'bg-zinc-800' : 'bg-slate-200'}`}>
+                    <div
+                      className={`h-full transition-all duration-300 ${darkMode ? 'bg-yellow-500' : 'bg-blue-600'}`}
+                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isImporting) setIsModalOpen(false);
+                  }}
+                  disabled={isImporting}
+                  className={`px-4 py-2 rounded-lg font-medium ${isImporting 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : ''} ${darkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-100 text-slate-600'}`}
+                >
+                  {isImporting ? 'Importando...' : 'Cancelar'}
+                </button>
+                <button
+                  type="button"
+                  onClick={processCsvImport}
+                  disabled={isImporting}
+                  className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
+                    isImporting 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : ''
+                  } ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                >
+                  {isImporting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current" />
+                      Importando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={18} />
+                      Confirmar Importação ({allCsvRows.length} registros)
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
