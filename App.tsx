@@ -180,14 +180,36 @@ const App: React.FC = () => {
 
   const handleBulkAddTransactions = async (newTs: Omit<Transaction, 'id'>[]) => {
     try {
-      // Save all transactions to Firebase
+      // Save all transactions to Firebase in batches to avoid timeouts
       const addedTransactions: Transaction[] = [];
-      for (const t of newTs) {
-        const docRef = await transactionService.add(t);
-        addedTransactions.push({ ...t, id: docRef.id });
+      const batchSize = 50; // Process 50 at a time
+      
+      for (let i = 0; i < newTs.length; i += batchSize) {
+        const batch = newTs.slice(i, i + batchSize);
+        const batchPromises = batch.map(t => 
+          transactionService.add(t).then(docRef => ({ ...t, id: docRef.id }))
+        );
+        
+        try {
+          const batchResults = await Promise.all(batchPromises);
+          addedTransactions.push(...batchResults);
+          console.log(`Batch ${Math.floor(i / batchSize) + 1}: ${batchResults.length} transações salvas`);
+        } catch (batchError: any) {
+          console.error(`Erro no batch ${Math.floor(i / batchSize) + 1}:`, batchError);
+          // Continue with next batch even if one fails
+          // Add failed items with generated IDs for local state
+          batch.forEach(t => {
+            addedTransactions.push({
+              ...t,
+              id: Math.random().toString(36).substr(2, 9)
+            });
+          });
+        }
       }
+      
       // Update local state
       setTransactions([...addedTransactions, ...transactions]);
+      console.log(`Total de ${addedTransactions.length} transações processadas`);
     } catch (error: any) {
       console.error("Error bulk adding transactions to Firebase:", error);
       // Fallback: add to local state with generated IDs
@@ -200,7 +222,7 @@ const App: React.FC = () => {
       if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
         alert("⚠️ ERRO: Permissão negada pelo Firestore.\n\nConfigure as regras de segurança no console do Firebase:\nhttps://console.firebase.google.com/project/lidera-flow/firestore/rules\n\nVeja o arquivo FIREBASE_SETUP.md para instruções.");
       } else {
-        alert("Erro ao salvar algumas transações no Firebase. Elas foram adicionadas localmente.");
+        alert(`Erro ao salvar algumas transações no Firebase. ${processed.length} foram adicionadas localmente.`);
       }
     }
   };

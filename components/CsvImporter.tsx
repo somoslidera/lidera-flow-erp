@@ -282,7 +282,7 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
 
       if (!description || expectedAmount === 0) {
         errors.push(`Linha ${rowIndex + 2}: Descrição ou valor inválido`);
-        return;
+        continue; // Skip this row, don't exit the function
       }
 
       // Extract entity information
@@ -331,7 +331,7 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
         );
         if (exists) {
           skippedCount++;
-          return;
+          continue; // Skip this row, don't exit the function
         }
       } else if (duplicateStrategy === 'update_existing') {
         const existing = existingTransactions.find(exist => 
@@ -342,7 +342,7 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
         if (existing) {
           // Update existing transaction (this would need to be handled by parent)
           updatedCount++;
-          return; // Skip adding as new, parent should handle update
+          continue; // Skip adding as new, parent should handle update
         }
       }
 
@@ -397,9 +397,9 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
 
     if (errors.length === 0 && newTransactions.length > 0) {
       setImportProgress({ 
-        current: newTransactions.length, 
-        total: newTransactions.length, 
-        message: 'Salvando transações...' 
+        current: allCsvRows.length, 
+        total: allCsvRows.length + newTransactions.length, 
+        message: `Salvando ${newTransactions.length} transações no Firebase...` 
       });
       
       try {
@@ -407,19 +407,23 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
         if (result instanceof Promise) {
           await result;
         }
+        
         setIsModalOpen(false);
         const entityMsg = importEntities && entityMap.size > 0 
           ? `\n${entityMap.size} entidades processadas.`
           : '';
         alert(`✅ Importação concluída!\n\n${newTransactions.length} transações importadas.\n${skippedCount} duplicatas ignoradas.${updatedCount > 0 ? `\n${updatedCount} atualizadas.` : ''}${entityMsg}${errors.length > 0 ? `\n${errors.length} erros encontrados.` : ''}`);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error importing transactions:", error);
-        setImportErrors([...errors, "Erro ao salvar transações no Firebase"]);
+        const errorMsg = error?.message || "Erro desconhecido ao salvar transações no Firebase";
+        setImportErrors([...errors, errorMsg]);
         setIsImporting(false);
+        alert(`❌ Erro na importação:\n\n${errorMsg}\n\nVerifique o console para mais detalhes.`);
       }
     } else if (errors.length > 0) {
       setImportErrors(errors);
       setIsImporting(false);
+      alert(`⚠️ Importação concluída com erros:\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? `\n... e mais ${errors.length - 10} erros` : ''}`);
     } else {
       alert('Nenhuma transação válida encontrada para importar.');
       setIsImporting(false);
