@@ -162,7 +162,7 @@ const BudgetVsActual: React.FC<BudgetVsActualProps> = ({
     });
 
     // Sum actual amounts
-    Object.entries(actualExpenses).forEach(([key, values]) => {
+    Object.entries(actualExpenses).forEach(([, values]) => {
       Object.entries(values).forEach(([month, amount]) => {
         if (month !== 'total') {
           monthlyTotals[parseInt(month)].actual += amount;
