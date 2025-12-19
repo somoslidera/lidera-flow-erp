@@ -179,50 +179,130 @@ const App: React.FC = () => {
   };
 
   const handleBulkAddTransactions = async (newTs: Omit<Transaction, 'id'>[]) => {
+    console.log(`🚀 Iniciando salvamento de ${newTs.length} transações no Firebase...`);
+    
     try {
       // Save all transactions to Firebase in batches to avoid timeouts
       const addedTransactions: Transaction[] = [];
+      const failedTransactions: Array<{ transaction: Omit<Transaction, 'id'>; error: any }> = [];
       const batchSize = 50; // Process 50 at a time
       
       for (let i = 0; i < newTs.length; i += batchSize) {
         const batch = newTs.slice(i, i + batchSize);
-        const batchPromises = batch.map(t => 
-          transactionService.add(t).then(docRef => ({ ...t, id: docRef.id }))
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        console.log(`📦 Processando batch ${batchNumber} (${batch.length} transações)...`);
+        
+        const batchPromises = batch.map((t, idx) => 
+          transactionService.add(t)
+            .then(docRef => {
+              console.log(`✅ Transação ${i + idx + 1} salva com ID: ${docRef.id}`);
+              return { ...t, id: docRef.id };
+            })
+            .catch(error => {
+              console.error(`❌ Erro ao salvar transação ${i + idx + 1}:`, error);
+              console.error('Dados da transação:', t);
+              failedTransactions.push({ transaction: t, error });
+              throw error; // Re-throw to be caught by Promise.allSettled
+            })
         );
         
         try {
-          const batchResults = await Promise.all(batchPromises);
-          addedTransactions.push(...batchResults);
-          console.log(`Batch ${Math.floor(i / batchSize) + 1}: ${batchResults.length} transações salvas`);
-        } catch (batchError: any) {
-          console.error(`Erro no batch ${Math.floor(i / batchSize) + 1}:`, batchError);
-          // Continue with next batch even if one fails
-          // Add failed items with generated IDs for local state
-          batch.forEach(t => {
-            addedTransactions.push({
-              ...t,
-              id: Math.random().toString(36).substr(2, 9)
-            });
+          // Use allSettled to get all results, even if some fail
+          const batchResults = await Promise.allSettled(batchPromises);
+          
+          batchResults.forEach((result, idx) => {
+            if (result.status === 'fulfilled') {
+              addedTransactions.push(result.value);
+            } else {
+              console.error(`❌ Falha na transação ${i + idx + 1} do batch ${batchNumber}:`, result.reason);
+              failedTransactions.push({ 
+                transaction: batch[idx], 
+                error: result.reason 
+              });
+            }
           });
+          
+          console.log(`✅ Batch ${batchNumber}: ${batchResults.filter(r => r.status === 'fulfilled').length}/${batch.length} transações salvas`);
+        } catch (batchError: any) {
+          console.error(`❌ Erro crítico no batch ${batchNumber}:`, batchError);
+          console.error('Detalhes do erro:', {
+            code: batchError?.code,
+            message: batchError?.message,
+            stack: batchError?.stack
+          });
+          
+          // Try to save individually to identify which ones fail
+          for (const t of batch) {
+            try {
+              const docRef = await transactionService.add(t);
+              addedTransactions.push({ ...t, id: docRef.id });
+              console.log(`✅ Transação salva individualmente`);
+            } catch (individualError: any) {
+              console.error(`❌ Falha ao salvar transação individual:`, individualError);
+              failedTransactions.push({ transaction: t, error: individualError });
+            }
+          }
         }
       }
       
-      // Update local state
-      setTransactions([...addedTransactions, ...transactions]);
-      console.log(`Total de ${addedTransactions.length} transações processadas`);
+      // Update local state only with successfully saved transactions
+      if (addedTransactions.length > 0) {
+        setTransactions([...addedTransactions, ...transactions]);
+        console.log(`✅ Total de ${addedTransactions.length} transações salvas no Firebase e estado local atualizado`);
+      }
+      
+      // Report failures
+      if (failedTransactions.length > 0) {
+        console.error(`❌ ${failedTransactions.length} transações falharam ao salvar:`);
+        failedTransactions.forEach(({ transaction, error }, idx) => {
+          console.error(`  ${idx + 1}. Erro:`, error?.code || error?.message || error);
+          console.error(`     Transação:`, transaction.description, transaction.expectedAmount);
+        });
+        
+        // Check for permission errors
+        const permissionErrors = failedTransactions.filter(f => 
+          f.error?.code === 'permission-denied' || 
+          f.error?.message?.includes('Permissão negada')
+        );
+        
+        if (permissionErrors.length > 0) {
+          alert(`⚠️ ERRO: ${permissionErrors.length} transações falharam por permissão negada.\n\nConfigure as regras de segurança no console do Firebase:\nhttps://console.firebase.google.com/project/lidera-flow/firestore/rules\n\n${addedTransactions.length} transações foram salvas com sucesso.`);
+        } else {
+          alert(`⚠️ ATENÇÃO: ${failedTransactions.length} transações falharam ao salvar.\n\n${addedTransactions.length} transações foram salvas com sucesso.\n\nVerifique o console para mais detalhes.`);
+        }
+      } else {
+        console.log(`🎉 Todas as ${addedTransactions.length} transações foram salvas com sucesso!`);
+      }
+      
     } catch (error: any) {
-      console.error("Error bulk adding transactions to Firebase:", error);
-      // Fallback: add to local state with generated IDs
-      const processed = newTs.map(t => ({
-        ...t,
-        id: Math.random().toString(36).substr(2, 9)
-      }));
-      setTransactions([...processed, ...transactions]);
+      console.error("❌ Erro crítico ao adicionar transações em lote:", error);
+      console.error('Detalhes:', {
+        code: error?.code,
+        message: error?.message,
+        stack: error?.stack
+      });
+      
+      // Fallback: try to save at least some
+      console.log('Tentando salvar individualmente...');
+      const saved: Transaction[] = [];
+      for (const t of newTs.slice(0, 10)) { // Try first 10
+        try {
+          const docRef = await transactionService.add(t);
+          saved.push({ ...t, id: docRef.id });
+        } catch (e) {
+          console.error('Falha individual:', e);
+        }
+      }
+      
+      if (saved.length > 0) {
+        setTransactions([...saved, ...transactions]);
+        alert(`⚠️ Erro ao salvar em lote. ${saved.length} transações foram salvas individualmente.\n\nVerifique o console para mais detalhes.`);
+      } else {
+        alert(`❌ ERRO: Não foi possível salvar nenhuma transação no Firebase.\n\nVerifique:\n1. Regras de segurança do Firestore\n2. Conexão com internet\n3. Console do navegador para detalhes`);
+      }
       
       if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
-        alert("⚠️ ERRO: Permissão negada pelo Firestore.\n\nConfigure as regras de segurança no console do Firebase:\nhttps://console.firebase.google.com/project/lidera-flow/firestore/rules\n\nVeja o arquivo FIREBASE_SETUP.md para instruções.");
-      } else {
-        alert(`Erro ao salvar algumas transações no Firebase. ${processed.length} foram adicionadas localmente.`);
+        alert("⚠️ ERRO: Permissão negada pelo Firestore.\n\nConfigure as regras de segurança no console do Firebase:\nhttps://console.firebase.google.com/project/lidera-flow/firestore/rules");
       }
     }
   };

@@ -32,7 +32,7 @@ export const transactionService = {
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
     } catch (error: any) {
       console.error("Error fetching transactions:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore no console do Firebase");
         console.error("Acesse: https://console.firebase.google.com/project/lidera-flow/firestore/rules");
       }
@@ -41,10 +41,29 @@ export const transactionService = {
   },
   add: async (transaction: Omit<Transaction, 'id'>) => {
     try {
-      return await addDoc(collection(db, TRANSACTIONS_COLLECTION), transaction);
+      // Validate required fields
+      if (!transaction.description || !transaction.dueDate) {
+        throw new Error(`Transação inválida: falta descrição ou data de vencimento`);
+      }
+      
+      // Clean data - remove undefined values
+      const cleanTransaction = Object.fromEntries(
+        Object.entries(transaction).filter(([_, v]) => v !== undefined)
+      ) as Omit<Transaction, 'id'>;
+      
+      console.log('💾 Salvando transação no Firebase:', {
+        description: cleanTransaction.description,
+        amount: cleanTransaction.expectedAmount,
+        date: cleanTransaction.dueDate
+      });
+      
+      const docRef = await addDoc(collection(db, TRANSACTIONS_COLLECTION), cleanTransaction);
+      console.log('✅ Transação salva com ID:', docRef.id);
+      return docRef;
     } catch (error: any) {
-      console.error("Error adding transaction:", error);
-      if (error.code === 'permission-denied') {
+      console.error("❌ Error adding transaction:", error);
+      console.error("Transaction data:", transaction);
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }
@@ -56,7 +75,7 @@ export const transactionService = {
       return await updateDoc(doc(db, TRANSACTIONS_COLLECTION, id), data);
     } catch (error: any) {
       console.error("Error updating transaction:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }
@@ -68,7 +87,7 @@ export const transactionService = {
       return await deleteDoc(doc(db, TRANSACTIONS_COLLECTION, id));
     } catch (error: any) {
       console.error("Error deleting transaction:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }
@@ -89,7 +108,7 @@ export const settingsService = {
       return null;
     } catch (error: any) {
       console.error("Error fetching settings:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
       }
       return null;
@@ -100,7 +119,7 @@ export const settingsService = {
       return await setDoc(doc(db, SETTINGS_COLLECTION, SETTINGS_DOC_ID), settings);
     } catch (error: any) {
       console.error("Error saving settings:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }
@@ -117,7 +136,7 @@ export const accountsService = {
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Account));
     } catch (error: any) {
       console.error("Error fetching accounts:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
       }
       return [];
@@ -128,7 +147,7 @@ export const accountsService = {
       return await addDoc(collection(db, ACCOUNTS_COLLECTION), account);
     } catch (error: any) {
       console.error("Error adding account:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }
@@ -140,7 +159,7 @@ export const accountsService = {
       return await updateDoc(doc(db, ACCOUNTS_COLLECTION, id), data);
     } catch (error: any) {
       console.error("Error updating account:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }
@@ -152,7 +171,7 @@ export const accountsService = {
       return await deleteDoc(doc(db, ACCOUNTS_COLLECTION, id));
     } catch (error: any) {
       console.error("Error deleting account:", error);
-      if (error.code === 'permission-denied') {
+      if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
       }

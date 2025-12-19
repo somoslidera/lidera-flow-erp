@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Entity } from '../types';
-import { Plus, Trash2, Edit2, Building2, User, Users, Mail, Phone, MapPin, FileText, Tag } from 'lucide-react';
+import { Plus, Trash2, Edit2, Building2, User, Users, Mail, Phone, MapPin, FileText, Tag, Table, Grid } from 'lucide-react';
+import EditableTable from './EditableTable';
 
 interface EntitiesProps {
   entities: Entity[];
@@ -15,6 +16,7 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
   const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'Cliente' | 'Fornecedor' | 'Ambos'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'editable'>('grid');
 
   // Form State
   const [formName, setFormName] = useState('');
@@ -157,13 +159,37 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
           <h2 className={`text-2xl font-bold ${textColor}`}>Fornecedores & Clientes</h2>
           <p className={subText}>Gerencie seus fornecedores e clientes</p>
         </div>
-        <button
-          onClick={openAddModal}
-          className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-        >
-          <Plus size={18} />
-          <span>Nova Entidade</span>
-        </button>
+        <div className="flex gap-2">
+          <div className={`flex rounded-lg border overflow-hidden ${darkMode ? 'border-zinc-700' : 'border-slate-300'}`}>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 px-3 ${viewMode === 'grid' 
+                ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
+                : darkMode ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Visualização em cards"
+            >
+              <Grid size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode('editable')}
+              className={`p-2 px-3 ${viewMode === 'editable' 
+                ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
+                : darkMode ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Tabela editável (estilo Airtable)"
+            >
+              <Table size={18} />
+            </button>
+          </div>
+          <button
+            onClick={openAddModal}
+            className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+          >
+            <Plus size={18} />
+            <span>Nova Entidade</span>
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -196,8 +222,47 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
         </div>
       </div>
 
-      {/* Entities Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Editable Table View */}
+      {viewMode === 'editable' ? (
+        <EditableTable
+          data={filteredEntities}
+          columns={[
+            { key: 'id', label: 'ID', type: 'text', width: '120px' },
+            { key: 'name', label: 'Nome', type: 'text' },
+            {
+              key: 'type',
+              label: 'Tipo',
+              type: 'select',
+              options: ['Cliente', 'Fornecedor', 'Ambos'],
+              width: '120px'
+            },
+            { key: 'email', label: 'Email', type: 'text', width: '200px' },
+            { key: 'phone', label: 'Telefone', type: 'text', width: '150px' },
+            { key: 'document', label: 'Documento', type: 'text', width: '150px' },
+            { key: 'address' as any, label: 'Cidade', type: 'text', width: '150px' },
+          ]}
+          onUpdate={(id, field, value) => {
+            // Handle nested address field
+            if (field === 'address' && typeof value === 'string') {
+              const entity = filteredEntities.find(e => e.id === id);
+              onUpdateEntity(id, {
+                address: {
+                  ...entity?.address,
+                  city: value
+                }
+              } as Partial<Entity>);
+            } else {
+              onUpdateEntity(id, { [field]: value } as Partial<Entity>);
+            }
+          }}
+          onDelete={onDeleteEntity}
+          onAdd={openAddModal}
+          getId={(item) => item.id}
+          darkMode={darkMode}
+        />
+      ) : (
+        /* Entities Grid */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredEntities.map(entity => (
           <div key={entity.id} className={`p-5 rounded-xl border relative group ${cardBg}`}>
             <div className="flex justify-between items-start mb-4">
@@ -274,10 +339,12 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
         ))}
       </div>
 
-      {filteredEntities.length === 0 && (
-        <div className={`p-8 text-center rounded-xl border ${cardBg}`}>
-          <p className={subText}>Nenhuma entidade encontrada</p>
-        </div>
+        {filteredEntities.length === 0 && (
+          <div className={`p-8 text-center rounded-xl border ${cardBg}`}>
+            <p className={subText}>Nenhuma entidade encontrada</p>
+          </div>
+        )}
+      </div>
       )}
 
       {/* Add/Edit Modal */}

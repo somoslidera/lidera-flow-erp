@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List } from 'lucide-react';
 import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity } from '../types';
 import CsvImporter from './CsvImporter';
+import EditableTable from './EditableTable';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -25,6 +26,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'table' | 'editable'>('table');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -226,6 +228,28 @@ const Transactions: React.FC<TransactionsProps> = ({
           <p className={subText}>Gerencie suas entradas e saídas</p>
         </div>
         <div className="flex gap-2">
+          <div className={`flex rounded-lg border overflow-hidden ${darkMode ? 'border-zinc-700' : 'border-slate-300'}`}>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`p-2 px-3 ${viewMode === 'table' 
+                ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
+                : darkMode ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Visualização em tabela"
+            >
+              <List size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode('editable')}
+              className={`p-2 px-3 ${viewMode === 'editable' 
+                ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
+                : darkMode ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100'
+              }`}
+              title="Tabela editável (estilo Airtable)"
+            >
+              <Table size={18} />
+            </button>
+          </div>
           <CsvImporter
             onImport={onBulkAdd}
             onImportEntities={onImportEntities}
@@ -256,22 +280,65 @@ const Transactions: React.FC<TransactionsProps> = ({
             className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
           />
         </div>
-        <div className="flex items-center gap-2">
-           <span className={`text-sm ${subText}`}>Itens por página:</span>
-           <select 
-              value={itemsPerPage} 
-              onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-              className={`p-2 rounded-lg border outline-none ${inputBg}`}
-           >
-             <option value={10}>10</option>
-             <option value={25}>25</option>
-             <option value={50}>50</option>
-             <option value={100}>100</option>
-           </select>
-        </div>
+        {viewMode === 'table' && (
+          <div className="flex items-center gap-2">
+             <span className={`text-sm ${subText}`}>Itens por página:</span>
+             <select 
+                value={itemsPerPage} 
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className={`p-2 rounded-lg border outline-none ${inputBg}`}
+             >
+               <option value={10}>10</option>
+               <option value={25}>25</option>
+               <option value={50}>50</option>
+               <option value={100}>100</option>
+             </select>
+          </div>
+        )}
       </div>
 
-      {/* Table */}
+      {/* Editable Table View */}
+      {viewMode === 'editable' ? (
+        <EditableTable
+          data={filteredAndSortedData}
+          columns={[
+            { key: 'id', label: 'ID', type: 'text', width: '120px' },
+            { key: 'dueDate', label: 'Vencimento', type: 'date', width: '140px' },
+            { key: 'description', label: 'Descrição', type: 'text' },
+            { 
+              key: 'type', 
+              label: 'Tipo', 
+              type: 'select', 
+              options: ['Entrada', 'Saída'],
+              width: '100px'
+            },
+            { key: 'category', label: 'Categoria', type: 'text', width: '150px' },
+            { key: 'entity', label: 'Entidade', type: 'text', width: '150px' },
+            { key: 'expectedAmount', label: 'Valor Previsto', type: 'currency', width: '130px' },
+            { key: 'actualAmount', label: 'Valor Realizado', type: 'currency', width: '130px' },
+            {
+              key: 'status',
+              label: 'Status',
+              type: 'select',
+              options: ['A pagar', 'Pago', 'A receber', 'Recebido', 'Atrasado', 'Cancelado'],
+              width: '120px'
+            },
+            { key: 'paymentDate', label: 'Data Pagamento', type: 'date', width: '140px' },
+          ]}
+          onUpdate={(id, field, value) => {
+            onUpdate(id, { [field]: value } as Partial<Transaction>);
+          }}
+          onDelete={onDelete}
+          onAdd={() => {
+            setEditingId(null);
+            setFormData(initialFormState);
+            setIsModalOpen(true);
+          }}
+          getId={(item) => item.id}
+          darkMode={darkMode}
+        />
+      ) : (
+        /* Regular Table View */
       <div className={`rounded-xl border overflow-hidden ${cardBg} shadow-sm`}>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left whitespace-nowrap">
@@ -355,6 +422,7 @@ const Transactions: React.FC<TransactionsProps> = ({
            </div>
         </div>
       </div>
+      )}
 
       {/* Add/Edit Modal */}
       {isModalOpen && (
