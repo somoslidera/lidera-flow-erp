@@ -262,89 +262,90 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
         />
       ) : (
         /* Entities Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredEntities.map(entity => (
-          <div key={entity.id} className={`p-5 rounded-xl border relative group ${cardBg}`}>
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-2">
-                <div className={`p-2 rounded-lg ${darkMode ? 'bg-zinc-800' : 'bg-slate-100'}`}>
-                  {getTypeIcon(entity.type)}
-                </div>
-                <div>
-                  <h3 className={`font-semibold text-lg ${textColor}`}>{entity.name}</h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border ${getTypeColor(entity.type)}`}>
-                    {entity.type}
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => openEditModal(entity)}
-                  className="p-2 text-blue-500 hover:bg-blue-500/10 rounded"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`Tem certeza que deseja excluir ${entity.name}?`)) {
-                      onDeleteEntity(entity.id);
-                    }
-                  }}
-                  className="p-2 text-red-500 hover:bg-red-500/10 rounded"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+        <>
+          {filteredEntities.length === 0 ? (
+            <div className={`p-8 text-center rounded-xl border ${cardBg}`}>
+              <p className={subText}>Nenhuma entidade encontrada</p>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredEntities.map(entity => (
+                <div key={entity.id} className={`p-5 rounded-xl border relative group ${cardBg}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-lg ${darkMode ? 'bg-zinc-800' : 'bg-slate-100'}`}>
+                        {getTypeIcon(entity.type)}
+                      </div>
+                      <div>
+                        <h3 className={`font-semibold text-lg ${textColor}`}>{entity.name}</h3>
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${getTypeColor(entity.type)}`}>
+                          {entity.type}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openEditModal(entity)}
+                        className="p-2 text-blue-500 hover:bg-blue-500/10 rounded"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Tem certeza que deseja excluir ${entity.name}?`)) {
+                            onDeleteEntity(entity.id);
+                          }
+                        }}
+                        className="p-2 text-red-500 hover:bg-red-500/10 rounded"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
 
-            <div className="space-y-2 text-sm">
-              {entity.email && (
-                <div className="flex items-center gap-2 text-xs">
-                  <Mail size={14} className={subText} />
-                  <span className={subText}>{entity.email}</span>
+                  <div className="space-y-2 text-sm">
+                    {entity.email && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <Mail size={14} className={subText} />
+                        <span className={subText}>{entity.email}</span>
+                      </div>
+                    )}
+                    {entity.phone && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <Phone size={14} className={subText} />
+                        <span className={subText}>{entity.phone}</span>
+                      </div>
+                    )}
+                    {entity.document && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <FileText size={14} className={subText} />
+                        <span className={subText}>{entity.documentType}: {entity.document}</span>
+                      </div>
+                    )}
+                    {entity.address?.city && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <MapPin size={14} className={subText} />
+                        <span className={subText}>
+                          {entity.address.city}{entity.address.state ? `, ${entity.address.state}` : ''}
+                        </span>
+                      </div>
+                    )}
+                    {entity.tags && entity.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {entity.tags.map((tag, idx) => (
+                          <span key={idx} className={`text-xs px-2 py-0.5 rounded ${darkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-slate-100 text-slate-600'}`}>
+                            <Tag size={10} className="inline mr-1" />
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              {entity.phone && (
-                <div className="flex items-center gap-2 text-xs">
-                  <Phone size={14} className={subText} />
-                  <span className={subText}>{entity.phone}</span>
-                </div>
-              )}
-              {entity.document && (
-                <div className="flex items-center gap-2 text-xs">
-                  <FileText size={14} className={subText} />
-                  <span className={subText}>{entity.documentType}: {entity.document}</span>
-                </div>
-              )}
-              {entity.address?.city && (
-                <div className="flex items-center gap-2 text-xs">
-                  <MapPin size={14} className={subText} />
-                  <span className={subText}>
-                    {entity.address.city}{entity.address.state ? `, ${entity.address.state}` : ''}
-                  </span>
-                </div>
-              )}
-              {entity.tags && entity.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {entity.tags.map((tag, idx) => (
-                    <span key={idx} className={`text-xs px-2 py-0.5 rounded ${darkMode ? 'bg-zinc-800 text-zinc-300' : 'bg-slate-100 text-slate-600'}`}>
-                      <Tag size={10} className="inline mr-1" />
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
-
-        {filteredEntities.length === 0 && (
-          <div className={`p-8 text-center rounded-xl border ${cardBg}`}>
-            <p className={subText}>Nenhuma entidade encontrada</p>
-          </div>
-        )}
-      </div>
+          )}
+        </>
       )}
 
       {/* Add/Edit Modal */}
