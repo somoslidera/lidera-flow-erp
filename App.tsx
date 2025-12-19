@@ -627,17 +627,6 @@ const App: React.FC = () => {
       throw error;
     }
   };
-      
-      console.log(`Imported ${addedEntities.length} entities`);
-    } catch (error: any) {
-      console.error("Error importing entities:", error);
-      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
-        alert("⚠️ ERRO: Permissão negada pelo Firestore ao importar entidades.");
-      } else {
-        alert("Erro ao importar entidades do CSV.");
-      }
-    }
-  };
 
   // Show loading while checking auth
   if (authLoading || loading) {
