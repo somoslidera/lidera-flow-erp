@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List } from 'lucide-react';
-import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity } from '../types';
+import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity, SubcategoryItem } from '../types';
 import CsvImporter from './CsvImporter';
 import EditableTable from './EditableTable';
 
@@ -8,6 +8,7 @@ interface TransactionsProps {
   transactions: Transaction[];
   accounts: Account[];
   entities: Entity[];
+  subcategories: SubcategoryItem[];
   settings: AppSettings;
   darkMode: boolean;
   onAdd: (t: Omit<Transaction, 'id'>) => void;
@@ -21,7 +22,7 @@ type SortField = 'dueDate' | 'description' | 'valor' | 'entity';
 type SortDirection = 'asc' | 'desc';
 
 const Transactions: React.FC<TransactionsProps> = ({ 
-  transactions, accounts, entities, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities
+  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities
 }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,6 +48,8 @@ const Transactions: React.FC<TransactionsProps> = ({
     dueDate: new Date().toISOString().split('T')[0],
     type: 'Saída' as TransactionType,
     category: '',
+    categoryId: '',
+    subcategoryId: '',
     entity: '',
     productService: '',
     costCenter: settings.costCenters[0] || '',
@@ -91,9 +94,19 @@ const Transactions: React.FC<TransactionsProps> = ({
             issueDate: new Date().toISOString().split('T')[0]
           });
         }
-      } else {
+        } else {
         // Single Transaction
-        onAdd(formData);
+        // Ensure categoryId is set based on category name if not already set
+        const finalFormData = { ...formData };
+        if (!finalFormData.categoryId && finalFormData.category) {
+          const matchingCategory = settings.categories.find(
+            c => c.name.toLowerCase() === finalFormData.category.toLowerCase()
+          );
+          if (matchingCategory) {
+            finalFormData.categoryId = matchingCategory.id;
+          }
+        }
+        onAdd(finalFormData);
       }
     }
     
@@ -114,7 +127,9 @@ const Transactions: React.FC<TransactionsProps> = ({
       issueDate: t.issueDate,
       dueDate: t.dueDate,
       type: t.type,
-      category: t.category,
+      category: t.category || '',
+      categoryId: t.categoryId || '',
+      subcategoryId: t.subcategoryId || '',
       entity: t.entity,
       productService: t.productService,
       costCenter: t.costCenter,
@@ -141,11 +156,22 @@ const Transactions: React.FC<TransactionsProps> = ({
   };
 
   const filteredAndSortedData = useMemo(() => {
-    const filtered = transactions.filter(t => 
-      t.description.toLowerCase().includes(filter.toLowerCase()) ||
-      t.entity.toLowerCase().includes(filter.toLowerCase()) ||
-      t.category.toLowerCase().includes(filter.toLowerCase())
-    );
+    const filterLower = filter.toLowerCase();
+    const filtered = transactions.filter(t => {
+      const categoryName = t.categoryId 
+        ? getCategoryName(t.categoryId) 
+        : t.category || '';
+      const subcategoryName = t.subcategoryId 
+        ? getSubcategoryName(t.subcategoryId) 
+        : '';
+      
+      return (
+        t.description.toLowerCase().includes(filterLower) ||
+        t.entity.toLowerCase().includes(filterLower) ||
+        categoryName.toLowerCase().includes(filterLower) ||
+        subcategoryName.toLowerCase().includes(filterLower)
+      );
+    });
 
     return filtered.sort((a, b) => {
       let valA: any = a[sortField as keyof Transaction];
@@ -209,6 +235,26 @@ const Transactions: React.FC<TransactionsProps> = ({
     return c.type === 'Despesa';
   });
 
+  // Get subcategories for selected category
+  const availableSubcategories = useMemo(() => {
+    if (!formData.categoryId) return [];
+    return subcategories.filter(s => s.categoryId === formData.categoryId);
+  }, [formData.categoryId, subcategories]);
+
+  // Helper to get category name from ID
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId) return '';
+    const category = settings.categories.find(c => c.id === categoryId);
+    return category?.name || '';
+  };
+
+  // Helper to get subcategory name from ID
+  const getSubcategoryName = (subcategoryId?: string) => {
+    if (!subcategoryId) return '';
+    const subcategory = subcategories.find(s => s.id === subcategoryId);
+    return subcategory?.name || '';
+  };
+
   // Use entities from Firebase, fallback to settings.entities for backward compatibility
   const availableEntitiesList = entities.length > 0 
     ? entities.filter(e => {
@@ -255,6 +301,8 @@ const Transactions: React.FC<TransactionsProps> = ({
             onImportEntities={onImportEntities}
             existingTransactions={transactions}
             existingEntities={entities.map(e => ({ name: e.name, type: e.type }))}
+            categories={settings.categories}
+            subcategories={subcategories}
             accounts={accounts}
             darkMode={darkMode}
           />
@@ -372,7 +420,16 @@ const Transactions: React.FC<TransactionsProps> = ({
                   <td className={`px-6 py-4 ${textColor}`}>
                       <div className="truncate max-w-[200px]" title={t.description}>{t.description}</div>
                   </td>
-                  <td className={`px-6 py-4 ${subText}`}>{t.category}</td>
+                  <td className={`px-6 py-4 ${subText}`}>
+                    <div>
+                      {t.categoryId ? getCategoryName(t.categoryId) : (t.category || '-')}
+                      {t.subcategoryId && (
+                        <div className="text-xs opacity-75">
+                          {getSubcategoryName(t.subcategoryId)}
+                        </div>
+                      )}
+                    </div>
+                  </td>
                   <td className={`px-6 py-4 ${subText}`}>{t.entity}</td>
                   <td className={`px-6 py-4 ${subText} text-xs`}>{accountName}</td>
                   <td className={`px-6 py-4 text-right font-medium ${t.type === 'Entrada' ? 'text-emerald-500' : 'text-red-500'}`}>
@@ -512,14 +569,45 @@ const Transactions: React.FC<TransactionsProps> = ({
 
                 <div className="space-y-1">
                   <label className={`text-xs font-medium ${subText}`}>Categoria</label>
-                  <select className={`w-full p-2 rounded border ${inputBg}`} value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                  <select 
+                    className={`w-full p-2 rounded border ${inputBg}`} 
+                    value={formData.categoryId} 
+                    onChange={e => {
+                      const selectedCategory = settings.categories.find(c => c.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        categoryId: e.target.value,
+                        category: selectedCategory?.name || '', // Keep legacy field
+                        subcategoryId: '' // Reset subcategory when category changes
+                      });
+                    }}
+                  >
                      <option value="">Selecione...</option>
-                     {availableCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                     {!availableCategories.find(c => c.name === formData.category) && formData.category && (
-                        <option value={formData.category}>{formData.category}</option>
+                     {availableCategories.map(c => (
+                       <option key={c.id} value={c.id}>{c.name}</option>
+                     ))}
+                     {/* Fallback for legacy data without categoryId */}
+                     {!formData.categoryId && formData.category && (
+                        <option value="">{formData.category} (legado)</option>
                      )}
                   </select>
                 </div>
+
+                {formData.categoryId && availableSubcategories.length > 0 && (
+                  <div className="space-y-1">
+                    <label className={`text-xs font-medium ${subText}`}>Subcategoria</label>
+                    <select 
+                      className={`w-full p-2 rounded border ${inputBg}`} 
+                      value={formData.subcategoryId || ''} 
+                      onChange={e => setFormData({...formData, subcategoryId: e.target.value})}
+                    >
+                      <option value="">Nenhuma subcategoria</option>
+                      {availableSubcategories.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 
                  <div className="space-y-1">
                   <label className={`text-xs font-medium ${subText}`}>Centro de Custo</label>

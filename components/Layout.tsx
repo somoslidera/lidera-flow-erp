@@ -34,6 +34,7 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
     { to: '/accounts', icon: Landmark, label: 'Contas & Caixas' },
     { to: '/entities', icon: Users, label: 'Fornecedores & Clientes' },
     { to: '/reports', icon: PieChart, label: 'Relatórios' },
+    { to: '/cashflow-report', icon: ArrowRightLeft, label: 'Fluxo de Caixa' },
     { to: '/settings', icon: Settings, label: 'Configurações' },
     { to: '/help', icon: HelpCircle, label: 'Ajuda' },
   ];

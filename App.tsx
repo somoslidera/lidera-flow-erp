@@ -8,10 +8,11 @@ import Reports from './components/Reports';
 import Accounts from './components/Accounts';
 import Help from './components/Help';
 import Login from './components/Login';
-import { Transaction, AppSettings, Account, Entity } from './types';
+import { Transaction, AppSettings, Account, Entity, SubcategoryItem } from './types';
 import { MOCK_TRANSACTIONS, MOCK_SETTINGS, MOCK_ACCOUNTS } from './constants';
-import { transactionService, settingsService, accountsService, entityService, authService } from './services/firebase';
+import { transactionService, settingsService, accountsService, entityService, authService, subcategoryService } from './services/firebase';
 import Entities from './components/Entities';
+import CashFlowReport from './components/CashFlowReport';
 import { User } from 'firebase/auth';
 
 const App: React.FC = () => {
@@ -28,6 +29,7 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [entities, setEntities] = useState<Entity[]>([]);
+  const [subcategories, setSubcategories] = useState<SubcategoryItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>(MOCK_SETTINGS);
   const [loading, setLoading] = useState(true);
 
@@ -55,11 +57,12 @@ const App: React.FC = () => {
     const fetchAllData = async () => {
       try {
         // Fetch all data from Firebase in parallel
-        const [firebaseTransactions, firebaseSettings, firebaseAccounts, firebaseEntities] = await Promise.all([
+        const [firebaseTransactions, firebaseSettings, firebaseAccounts, firebaseEntities, firebaseSubcategories] = await Promise.all([
           transactionService.getAll(),
           settingsService.get(),
           accountsService.getAll(),
-          entityService.getAll()
+          entityService.getAll(),
+          subcategoryService.getAll()
         ]);
 
         // Set transactions
@@ -139,6 +142,9 @@ const App: React.FC = () => {
             }
           }
         }
+
+        // Set subcategories
+        setSubcategories(firebaseSubcategories);
       } catch (error) {
         console.error("Error fetching data from Firebase:", error);
         // Fallback to mock data on error
@@ -152,6 +158,51 @@ const App: React.FC = () => {
 
     fetchAllData();
   }, []);
+
+  // Migration helper: Convert category (string) to categoryId
+  const migrateTransactionCategories = async () => {
+    try {
+      const allTransactions = await transactionService.getAll();
+      const needsMigration = allTransactions.some(t => !t.categoryId && t.category);
+      
+      if (!needsMigration) {
+        console.log("No category migration needed");
+        return;
+      }
+
+      console.log("Starting category migration...");
+      let migratedCount = 0;
+
+      for (const transaction of allTransactions) {
+        if (!transaction.categoryId && transaction.category) {
+          // Find matching category by name
+          const matchingCategory = settings.categories.find(
+            c => c.name.toLowerCase() === transaction.category.toLowerCase()
+          );
+
+          if (matchingCategory) {
+            await transactionService.update(transaction.id, {
+              categoryId: matchingCategory.id,
+              category: transaction.category // Keep legacy field during migration
+            });
+            migratedCount++;
+          }
+        }
+      }
+
+      console.log(`Migration completed: ${migratedCount} transactions migrated`);
+      
+      // Reload transactions
+      const updatedTransactions = await transactionService.getAll();
+      setTransactions(updatedTransactions);
+    } catch (error) {
+      console.error("Error during category migration:", error);
+    }
+  };
+
+  // Migration can be triggered manually or during initial load if needed
+  // Commented out auto-migration to avoid infinite loops
+  // Call migrateTransactionCategories() manually if needed
 
   const toggleTheme = () => setDarkMode(!darkMode);
 
@@ -522,6 +573,60 @@ const App: React.FC = () => {
       // Reload entities to get all updates
       const allEntities = await entityService.getAll();
       setEntities(allEntities);
+    } catch (error: any) {
+      console.error("Error importing entities:", error);
+      throw error;
+    }
+  };
+
+  // Subcategory handlers
+  const handleAddSubcategory = async (subcategory: Omit<SubcategoryItem, 'id'>) => {
+    try {
+      const docRef = await subcategoryService.add(subcategory);
+      const newSubcategory = { ...subcategory, id: docRef.id };
+      setSubcategories([...subcategories, newSubcategory]);
+    } catch (error: any) {
+      console.error("Error adding subcategory to Firebase:", error);
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        alert("⚠️ ERRO: Permissão negada pelo Firestore.\n\nConfigure as regras de segurança no console do Firebase.");
+      } else {
+        alert("Erro ao adicionar subcategoria no Firebase.");
+      }
+      throw error;
+    }
+  };
+
+  const handleUpdateSubcategory = async (id: string, updated: Partial<SubcategoryItem>) => {
+    try {
+      await subcategoryService.update(id, updated);
+      setSubcategories(subcategories.map(s => s.id === id ? { ...s, ...updated } : s));
+    } catch (error: any) {
+      console.error("Error updating subcategory in Firebase:", error);
+      setSubcategories(subcategories.map(s => s.id === id ? { ...s, ...updated } : s));
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        console.warn("⚠️ Permissão negada - Configure as regras do Firestore");
+      } else {
+        alert("Erro ao atualizar subcategoria no Firebase.");
+      }
+      throw error;
+    }
+  };
+
+  const handleDeleteSubcategory = async (id: string) => {
+    try {
+      await subcategoryService.delete(id);
+      setSubcategories(subcategories.filter(s => s.id !== id));
+    } catch (error: any) {
+      console.error("Error deleting subcategory from Firebase:", error);
+      setSubcategories(subcategories.filter(s => s.id !== id));
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        console.warn("⚠️ Permissão negada - Configure as regras do Firestore");
+      } else {
+        alert("Erro ao deletar subcategoria no Firebase.");
+      }
+      throw error;
+    }
+  };
       
       console.log(`Imported ${addedEntities.length} entities`);
     } catch (error: any) {
@@ -579,6 +684,7 @@ const App: React.FC = () => {
                 transactions={transactions} 
                 accounts={accounts}
                 entities={entities}
+                subcategories={subcategories}
                 settings={settings}
                 darkMode={darkMode}
                 onAdd={handleAddTransaction}
@@ -596,6 +702,7 @@ const App: React.FC = () => {
                 transactions={transactions} 
                 accounts={accounts}
                 entities={entities}
+                subcategories={subcategories}
                 settings={settings}
                 darkMode={darkMode}
                 onAdd={handleAddTransaction}
@@ -665,12 +772,40 @@ const App: React.FC = () => {
             element={<Reports transactions={transactions} darkMode={darkMode} />}
           />
           <Route 
+            path="/cashflow-report"
+            element={
+              <CashFlowReport
+                transactions={transactions}
+                accounts={accounts}
+                categories={settings.categories}
+                subcategories={subcategories}
+                darkMode={darkMode}
+              />
+            }
+          />
+          <Route 
+            path="/relatorio-fluxo-caixa"
+            element={
+              <CashFlowReport
+                transactions={transactions}
+                accounts={accounts}
+                categories={settings.categories}
+                subcategories={subcategories}
+                darkMode={darkMode}
+              />
+            }
+          />
+          <Route 
             path="/settings" 
             element={
               <Settings 
-                settings={settings} 
+                settings={settings}
+                subcategories={subcategories}
                 darkMode={darkMode}
                 onUpdateSettings={handleUpdateSettings}
+                onAddSubcategory={handleAddSubcategory}
+                onUpdateSubcategory={handleUpdateSubcategory}
+                onDeleteSubcategory={handleDeleteSubcategory}
               />
             } 
           />
@@ -678,9 +813,13 @@ const App: React.FC = () => {
             path="/configuracoes" 
             element={
               <Settings 
-                settings={settings} 
+                settings={settings}
+                subcategories={subcategories}
                 darkMode={darkMode}
                 onUpdateSettings={handleUpdateSettings}
+                onAddSubcategory={handleAddSubcategory}
+                onUpdateSubcategory={handleUpdateSubcategory}
+                onDeleteSubcategory={handleDeleteSubcategory}
               />
             } 
           />

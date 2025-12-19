@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
-import { Transaction, AppSettings, Account, Entity } from "../types";
+import { Transaction, AppSettings, Account, Entity, SubcategoryItem, Budget } from "../types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyADEtHK6sKc306bJkCcEinKENcnPO2T3wo",
@@ -22,6 +22,8 @@ export const TRANSACTIONS_COLLECTION = "transactions";
 export const SETTINGS_COLLECTION = "settings";
 export const ACCOUNTS_COLLECTION = "accounts";
 export const ENTITIES_COLLECTION = "entities";
+export const SUBCATEGORIES_COLLECTION = "subcategories";
+export const BUDGETS_COLLECTION = "budgets";
 const SETTINGS_DOC_ID = "main"; // Single document for settings
 
 // Service functions
@@ -245,6 +247,175 @@ export const entityService = {
       return await deleteDoc(doc(db, ENTITIES_COLLECTION, id));
     } catch (error: any) {
       console.error("Error deleting entity:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
+  }
+};
+
+// Subcategories Service
+export const subcategoryService = {
+  getAll: async (): Promise<SubcategoryItem[]> => {
+    try {
+      const querySnapshot = await getDocs(collection(db, SUBCATEGORIES_COLLECTION));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubcategoryItem));
+    } catch (error: any) {
+      console.error("Error fetching subcategories:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+      }
+      return [];
+    }
+  },
+  getByCategoryId: async (categoryId: string): Promise<SubcategoryItem[]> => {
+    try {
+      const all = await subcategoryService.getAll();
+      return all.filter(s => s.categoryId === categoryId);
+    } catch (error: any) {
+      console.error("Error fetching subcategories by category:", error);
+      return [];
+    }
+  },
+  getById: async (id: string): Promise<SubcategoryItem | null> => {
+    try {
+      const docRef = doc(db, SUBCATEGORIES_COLLECTION, id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as SubcategoryItem;
+      }
+      return null;
+    } catch (error: any) {
+      console.error("Error fetching subcategory:", error);
+      return null;
+    }
+  },
+  add: async (subcategory: Omit<SubcategoryItem, 'id'>) => {
+    try {
+      const cleanSubcategory = Object.fromEntries(
+        Object.entries(subcategory).filter(([_, v]) => v !== undefined)
+      ) as Omit<SubcategoryItem, 'id'>;
+      return await addDoc(collection(db, SUBCATEGORIES_COLLECTION), cleanSubcategory);
+    } catch (error: any) {
+      console.error("Error adding subcategory:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
+  },
+  update: async (id: string, data: Partial<SubcategoryItem>) => {
+    try {
+      const cleanData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+      ) as Partial<SubcategoryItem>;
+      return await updateDoc(doc(db, SUBCATEGORIES_COLLECTION, id), cleanData);
+    } catch (error: any) {
+      console.error("Error updating subcategory:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
+  },
+  delete: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, SUBCATEGORIES_COLLECTION, id));
+    } catch (error: any) {
+      console.error("Error deleting subcategory:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
+  }
+};
+
+// Budgets Service
+export const budgetService = {
+  getAll: async (): Promise<Budget[]> => {
+    try {
+      const querySnapshot = await getDocs(collection(db, BUDGETS_COLLECTION));
+      return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Budget));
+    } catch (error: any) {
+      console.error("Error fetching budgets:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+      }
+      return [];
+    }
+  },
+  getByYear: async (year: number): Promise<Budget | null> => {
+    try {
+      const all = await budgetService.getAll();
+      return all.find(b => b.year === year && b.isActive) || null;
+    } catch (error: any) {
+      console.error("Error fetching budget by year:", error);
+      return null;
+    }
+  },
+  getActive: async (): Promise<Budget | null> => {
+    try {
+      const all = await budgetService.getAll();
+      return all.find(b => b.isActive) || null;
+    } catch (error: any) {
+      console.error("Error fetching active budget:", error);
+      return null;
+    }
+  },
+  getById: async (id: string): Promise<Budget | null> => {
+    try {
+      const docRef = doc(db, BUDGETS_COLLECTION, id);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Budget;
+      }
+      return null;
+    } catch (error: any) {
+      console.error("Error fetching budget:", error);
+      return null;
+    }
+  },
+  add: async (budget: Omit<Budget, 'id'>) => {
+    try {
+      const cleanBudget = Object.fromEntries(
+        Object.entries(budget).filter(([_, v]) => v !== undefined)
+      ) as Omit<Budget, 'id'>;
+      return await addDoc(collection(db, BUDGETS_COLLECTION), cleanBudget);
+    } catch (error: any) {
+      console.error("Error adding budget:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
+  },
+  update: async (id: string, data: Partial<Budget>) => {
+    try {
+      const cleanData = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+      ) as Partial<Budget>;
+      return await updateDoc(doc(db, BUDGETS_COLLECTION, id), cleanData);
+    } catch (error: any) {
+      console.error("Error updating budget:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
+  },
+  delete: async (id: string) => {
+    try {
+      return await deleteDoc(doc(db, BUDGETS_COLLECTION, id));
+    } catch (error: any) {
+      console.error("Error deleting budget:", error);
       if (error?.code === 'permission-denied') {
         console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
         throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");

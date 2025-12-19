@@ -16,7 +16,9 @@ export interface Transaction {
   issueDate: string; // Data de lançamento
   dueDate: string; // Data de vencimento
   type: TransactionType; // Tipo (Entrada/Saída)
-  category: string; // Categoria
+  category: string; // Categoria (legado - manter para compatibilidade durante migration)
+  categoryId?: string; // ID da categoria (novo campo)
+  subcategoryId?: string; // ID da subcategoria (novo campo)
   entity: string; // Entidade (Cliente/Fornecedor)
   productService: string; // Produto ou Serviço
   costCenter: string; // Centro de Custo
@@ -33,10 +35,17 @@ export interface Transaction {
   importedAt?: string; // Import timestamp
 }
 
+export interface SubcategoryItem {
+  id: string;
+  name: string;
+  categoryId: string; // Referência à categoria pai
+}
+
 export interface CategoryItem {
   id: string;
   name: string;
   type: 'Receita' | 'Despesa';
+  subcategories?: SubcategoryItem[]; // Subcategorias hierárquicas
 }
 
 export interface EntityItem {
@@ -94,4 +103,28 @@ export interface DashboardMetrics {
   pendingIncome: number;
   pendingExpense: number;
   projectedBalance: number;
+}
+
+export interface BudgetItem {
+  id: string;
+  budgetId: string;
+  categoryId: string;
+  subcategoryId?: string;
+  monthlyAmounts: {
+    [month: number]: number; // 1-12 para cada mês
+  };
+  totalAmount: number; // Soma dos 12 meses
+  notes?: string;
+}
+
+export interface Budget {
+  id: string;
+  year: number;
+  name: string; // Ex: "Orçamento 2025"
+  description?: string;
+  items: BudgetItem[];
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string; // userId
+  isActive: boolean;
 }

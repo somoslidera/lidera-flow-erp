@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Upload, X, Download, FileSpreadsheet, CheckCircle, AlertCircle } from 'lucide-react';
-import { Transaction, TransactionType, TransactionStatus } from '../types';
+import { Transaction, TransactionType, TransactionStatus, CategoryItem, SubcategoryItem } from '../types';
 
 interface CsvImporterProps {
   onImport: (transactions: Omit<Transaction, 'id'>[]) => void | Promise<void>;
   onImportEntities?: (entities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>) => void | Promise<void>;
   existingTransactions: Transaction[];
   existingEntities?: Array<{ name: string; type?: string }>;
+  categories?: CategoryItem[];
+  subcategories?: SubcategoryItem[];
   accounts: Array<{ id: string; name: string }>;
   darkMode: boolean;
 }
@@ -17,6 +19,7 @@ const SYSTEM_FIELDS = [
   { key: 'dueDate', label: 'Data de Vencimento', required: true, example: '02/10/2025' },
   { key: 'type', label: 'Tipo (Entrada/Saída)', required: true, example: 'Entrada' },
   { key: 'category', label: 'Categoria', required: true, example: 'Receita de serviços' },
+  { key: 'subcategory', label: 'Subcategoria', required: false, example: 'Marketing Digital' },
   { key: 'entity', label: 'Entidade (Cliente/Fornecedor)', required: true, example: 'Cia da Fruta' },
   { key: 'productService', label: 'Produto ou Serviço', required: false, example: 'Consultoria' },
   { key: 'costCenter', label: 'Centro de Custo', required: false, example: 'Consultoria' },
@@ -34,6 +37,8 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
   onImportEntities,
   existingTransactions, 
   existingEntities = [],
+  categories = [],
+  subcategories = [],
   accounts,
   darkMode 
 }) => {
@@ -301,13 +306,41 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
         }
       }
 
+      // Find categoryId and subcategoryId based on names
+      const categoryName = getCol('category') || 'Geral';
+      const subcategoryName = getCol('subcategory') || '';
+      let categoryId: string | undefined;
+      let subcategoryId: string | undefined;
+
+      // Find category by name
+      if (categories && categories.length > 0) {
+        const matchingCategory = categories.find(
+          (c: CategoryItem) => c.name.toLowerCase() === categoryName.toLowerCase()
+        );
+        if (matchingCategory) {
+          categoryId = matchingCategory.id;
+          
+          // Find subcategory by name if provided
+          if (subcategoryName && subcategories && subcategories.length > 0) {
+            const matchingSubcategory = subcategories.find(
+              (s: SubcategoryItem) => s.categoryId === categoryId && s.name.toLowerCase() === subcategoryName.toLowerCase()
+            );
+            if (matchingSubcategory) {
+              subcategoryId = matchingSubcategory.id;
+            }
+          }
+        }
+      }
+
       const transaction: Omit<Transaction, 'id'> = {
         issueDate: parseDate(getCol('issueDate')) || new Date().toISOString().split('T')[0],
         dueDate: parseDate(getCol('dueDate')) || new Date().toISOString().split('T')[0],
         accrualDate: parseDate(getCol('accrualDate')) || parseDate(getCol('dueDate')) || new Date().toISOString().split('T')[0],
         paymentDate: getCol('paymentDate') ? parseDate(getCol('paymentDate')) : undefined,
         type,
-        category: getCol('category') || 'Geral',
+        category: categoryName, // Keep legacy field
+        categoryId: categoryId, // New field
+        subcategoryId: subcategoryId, // New field
         entity: entityName,
         productService: getCol('productService') || '',
         costCenter: getCol('costCenter') || '',

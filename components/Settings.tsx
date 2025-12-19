@@ -1,17 +1,33 @@
 import React, { useState } from 'react';
-import { AppSettings } from '../types';
-import { Plus, Trash2, Edit2, X, Check } from 'lucide-react';
+import { AppSettings, SubcategoryItem } from '../types';
+import { Plus, Trash2, Edit2, X, Check, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface SettingsProps {
   settings: AppSettings;
+  subcategories: SubcategoryItem[];
   darkMode: boolean;
   onUpdateSettings: (s: AppSettings) => void;
+  onAddSubcategory: (subcategory: Omit<SubcategoryItem, 'id'>) => Promise<void>;
+  onUpdateSubcategory: (id: string, updated: Partial<SubcategoryItem>) => Promise<void>;
+  onDeleteSubcategory: (id: string) => Promise<void>;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, darkMode, onUpdateSettings }) => {
+const Settings: React.FC<SettingsProps> = ({ 
+  settings, 
+  subcategories, 
+  darkMode, 
+  onUpdateSettings,
+  onAddSubcategory,
+  onUpdateSubcategory,
+  onDeleteSubcategory
+}) => {
   const [activeTab, setActiveTab] = useState<keyof AppSettings>('categories');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [isSubcategoryModalOpen, setIsSubcategoryModalOpen] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
 
   // Form State
   const [itemName, setItemName] = useState('');
@@ -98,6 +114,65 @@ const Settings: React.FC<SettingsProps> = ({ settings, darkMode, onUpdateSetting
     });
   };
 
+  // Subcategory handlers
+  const toggleCategoryExpansion = (categoryId: string) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(categoryId)) {
+      newExpanded.delete(categoryId);
+    } else {
+      newExpanded.add(categoryId);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
+  const openAddSubcategoryModal = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setEditingSubcategoryId(null);
+    setItemName('');
+    setIsSubcategoryModalOpen(true);
+  };
+
+  const openEditSubcategoryModal = (subcategory: SubcategoryItem) => {
+    setSelectedCategoryId(subcategory.categoryId);
+    setEditingSubcategoryId(subcategory.id);
+    setItemName(subcategory.name);
+    setIsSubcategoryModalOpen(true);
+  };
+
+  const handleSaveSubcategory = async () => {
+    if (!itemName.trim() || !selectedCategoryId) return;
+
+    try {
+      if (editingSubcategoryId) {
+        await onUpdateSubcategory(editingSubcategoryId, { name: itemName });
+      } else {
+        await onAddSubcategory({
+          name: itemName,
+          categoryId: selectedCategoryId
+        });
+      }
+      setIsSubcategoryModalOpen(false);
+      setItemName('');
+      setSelectedCategoryId(null);
+      setEditingSubcategoryId(null);
+    } catch (error) {
+      console.error("Error saving subcategory:", error);
+    }
+  };
+
+  const handleDeleteSubcategory = async (id: string) => {
+    if (!window.confirm('Tem certeza que deseja excluir esta subcategoria?')) return;
+    try {
+      await onDeleteSubcategory(id);
+    } catch (error) {
+      console.error("Error deleting subcategory:", error);
+    }
+  };
+
+  const getSubcategoriesForCategory = (categoryId: string) => {
+    return subcategories.filter(s => s.categoryId === categoryId);
+  };
+
   const tabs: { key: keyof AppSettings; label: string }[] = [
     { key: 'categories', label: 'Categorias' },
     { key: 'entities', label: 'Entidades' },
@@ -149,37 +224,106 @@ const Settings: React.FC<SettingsProps> = ({ settings, darkMode, onUpdateSetting
                 const isObject = typeof item === 'object';
                 const name = isObject ? item.name : item;
                 const type = isObject ? item.type : null;
+                const categoryId = isObject ? item.id : null;
+                const isExpanded = categoryId && expandedCategories.has(categoryId);
+                const categorySubcategories = categoryId ? getSubcategoriesForCategory(categoryId) : [];
 
                 return (
-                  <div key={index} className={`flex justify-between items-center p-4 rounded-lg border group ${darkMode ? 'bg-zinc-800/30 border-zinc-800 hover:border-zinc-700' : 'bg-slate-50 border-slate-200 hover:border-blue-200'}`}>
-                     <div className="flex items-center gap-3">
-                        <span className={`font-medium ${textColor}`}>{name}</span>
-                        {type && (
-                          <span className={`text-xs px-2 py-0.5 rounded-full border ${
-                            type === 'Receita' || type === 'Cliente' 
-                              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
-                              : type === 'Despesa' || type === 'Fornecedor'
-                                ? 'bg-red-500/10 text-red-500 border-red-500/20'
-                                : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                          }`}>
-                            {type}
-                          </span>
-                        )}
-                     </div>
-                     <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button 
-                        onClick={() => openEditModal(index, item)}
-                        className={`p-2 rounded ${darkMode ? 'hover:bg-zinc-700 text-blue-400' : 'hover:bg-blue-100 text-blue-600'}`}
-                       >
-                         <Edit2 size={16} />
-                       </button>
-                       <button 
-                        onClick={() => handleDelete(index)}
-                        className={`p-2 rounded ${darkMode ? 'hover:bg-zinc-700 text-red-400' : 'hover:bg-red-100 text-red-600'}`}
-                       >
-                         <Trash2 size={16} />
-                       </button>
-                     </div>
+                  <div key={index} className={`rounded-lg border ${darkMode ? 'bg-zinc-800/30 border-zinc-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <div className={`flex justify-between items-center p-4 group ${darkMode ? 'hover:border-zinc-700' : 'hover:border-blue-200'}`}>
+                       <div className="flex items-center gap-3 flex-1">
+                          {activeTab === 'categories' && (
+                            <button
+                              onClick={() => categoryId && toggleCategoryExpansion(categoryId)}
+                              className={`p-1 rounded ${darkMode ? 'hover:bg-zinc-700' : 'hover:bg-slate-200'}`}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown size={16} className={subText} />
+                              ) : (
+                                <ChevronRight size={16} className={subText} />
+                              )}
+                            </button>
+                          )}
+                          <span className={`font-medium ${textColor}`}>{name}</span>
+                          {type && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${
+                              type === 'Receita' || type === 'Cliente' 
+                                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                                : type === 'Despesa' || type === 'Fornecedor'
+                                  ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                                  : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                            }`}>
+                              {type}
+                            </span>
+                          )}
+                          {activeTab === 'categories' && categorySubcategories.length > 0 && (
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${subText} ${darkMode ? 'bg-zinc-700/50' : 'bg-slate-200'}`}>
+                              {categorySubcategories.length} subcategorias
+                            </span>
+                          )}
+                       </div>
+                       <div className="flex items-center gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                          {activeTab === 'categories' && categoryId && (
+                            <button
+                              onClick={() => openAddSubcategoryModal(categoryId)}
+                              className={`p-2 rounded ${darkMode ? 'hover:bg-zinc-700 text-green-400' : 'hover:bg-green-100 text-green-600'}`}
+                              title="Adicionar subcategoria"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          )}
+                          <button 
+                           onClick={() => openEditModal(index, item)}
+                           className={`p-2 rounded ${darkMode ? 'hover:bg-zinc-700 text-blue-400' : 'hover:bg-blue-100 text-blue-600'}`}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                           onClick={() => handleDelete(index)}
+                           className={`p-2 rounded ${darkMode ? 'hover:bg-zinc-700 text-red-400' : 'hover:bg-red-100 text-red-600'}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                       </div>
+                    </div>
+                    
+                    {/* Subcategorias expandidas */}
+                    {activeTab === 'categories' && isExpanded && categoryId && (
+                      <div className={`px-4 pb-4 border-t ${darkMode ? 'border-zinc-800 bg-zinc-900/30' : 'border-slate-200 bg-slate-100/50'}`}>
+                        <div className="mt-3 space-y-2">
+                          {categorySubcategories.length > 0 ? (
+                            categorySubcategories.map((sub) => (
+                              <div
+                                key={sub.id}
+                                className={`flex justify-between items-center p-3 rounded-lg border ${darkMode ? 'bg-zinc-800/50 border-zinc-700' : 'bg-white border-slate-200'}`}
+                              >
+                                <span className={`text-sm font-medium ${textColor}`}>
+                                  {sub.name}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => openEditSubcategoryModal(sub)}
+                                    className={`p-1.5 rounded ${darkMode ? 'hover:bg-zinc-700 text-blue-400' : 'hover:bg-blue-100 text-blue-600'}`}
+                                  >
+                                    <Edit2 size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSubcategory(sub.id)}
+                                    className={`p-1.5 rounded ${darkMode ? 'hover:bg-zinc-700 text-red-400' : 'hover:bg-red-100 text-red-600'}`}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className={`text-sm text-center py-4 ${subText}`}>
+                              Nenhuma subcategoria cadastrada
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
              })}
@@ -257,6 +401,58 @@ const Settings: React.FC<SettingsProps> = ({ settings, darkMode, onUpdateSetting
                  <button onClick={handleSave} className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Salvar</button>
               </div>
            </div>
+        </div>
+      )}
+
+      {/* Subcategory Modal */}
+      {isSubcategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md rounded-xl shadow-2xl p-6 ${cardBg}`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-xl font-bold ${textColor}`}>
+                {editingSubcategoryId ? 'Editar Subcategoria' : 'Nova Subcategoria'}
+              </h3>
+              <button onClick={() => setIsSubcategoryModalOpen(false)}><X className={subText} /></button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className={`block text-sm font-medium mb-1 ${subText}`}>Nome da Subcategoria</label>
+                <input
+                  autoFocus
+                  className={`w-full p-2.5 rounded-lg border ${inputBg}`}
+                  value={itemName}
+                  onChange={e => setItemName(e.target.value)}
+                  placeholder="Ex: Marketing Digital, Publicidade, etc."
+                />
+              </div>
+              {selectedCategoryId && (
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${subText}`}>Categoria</label>
+                  <div className={`p-2.5 rounded-lg border ${darkMode ? 'bg-zinc-800 border-zinc-700' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className={textColor}>
+                      {settings.categories.find(c => c.id === selectedCategoryId)?.name || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 mt-8">
+              <button
+                onClick={() => setIsSubcategoryModalOpen(false)}
+                className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-100 text-slate-600'}`}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveSubcategory}
+                className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

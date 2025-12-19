@@ -14,7 +14,10 @@ interface DashboardProps {
 
 type DateRangeOption = 'thisMonth' | 'lastMonth' | 'thisYear' | 'last30' | 'last90' | 'custom';
 
+type DashboardTab = 'overview' | 'cashflow' | 'expenses' | 'revenue' | 'budget';
+
 const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode }) => {
+  const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
   const [dateRange, setDateRange] = useState<DateRangeOption>('thisMonth');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -508,7 +511,66 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* Tabs Navigation */}
+      <div className={`border-b ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+        <nav className="flex space-x-1" aria-label="Tabs">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'overview'
+                ? darkMode ? 'bg-zinc-900 text-yellow-500 border-b-2 border-yellow-500' : 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : darkMode ? 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Visão Geral
+          </button>
+          <button
+            onClick={() => setActiveTab('cashflow')}
+            className={`px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'cashflow'
+                ? darkMode ? 'bg-zinc-900 text-yellow-500 border-b-2 border-yellow-500' : 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : darkMode ? 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Fluxo de Caixa
+          </button>
+          <button
+            onClick={() => setActiveTab('expenses')}
+            className={`px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'expenses'
+                ? darkMode ? 'bg-zinc-900 text-yellow-500 border-b-2 border-yellow-500' : 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : darkMode ? 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Despesas
+          </button>
+          <button
+            onClick={() => setActiveTab('revenue')}
+            className={`px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'revenue'
+                ? darkMode ? 'bg-zinc-900 text-yellow-500 border-b-2 border-yellow-500' : 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : darkMode ? 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Receitas
+          </button>
+          <button
+            onClick={() => setActiveTab('budget')}
+            className={`px-4 py-3 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === 'budget'
+                ? darkMode ? 'bg-zinc-900 text-yellow-500 border-b-2 border-yellow-500' : 'bg-white text-blue-600 border-b-2 border-blue-600'
+                : darkMode ? 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900/50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Orçado vs Realizado
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className={`p-6 rounded-xl border ${cardBg}`}>
           <div className="flex items-center justify-between mb-4">
@@ -1004,6 +1066,48 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, accounts, darkMode 
           Cenário Pessimista: receitas atrasadas, todas despesas pagas
         </div>
       </div>
+        </div>
+      )}
+
+      {activeTab === 'cashflow' && (
+        <div className="space-y-6">
+          {/* TODO: Move cash flow related visualizations here */}
+          <div className={`p-6 rounded-xl border ${cardBg}`}>
+            <h3 className={`font-semibold mb-4 ${textColor}`}>Fluxo de Caixa</h3>
+            <p className={subText}>Visualizações de fluxo de caixa serão organizadas aqui.</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'expenses' && (
+        <div className="space-y-6">
+          {/* TODO: Move expense related visualizations here */}
+          <div className={`p-6 rounded-xl border ${cardBg}`}>
+            <h3 className={`font-semibold mb-4 ${textColor}`}>Despesas</h3>
+            <p className={subText}>Visualizações de despesas serão organizadas aqui.</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'revenue' && (
+        <div className="space-y-6">
+          {/* TODO: Move revenue related visualizations here */}
+          <div className={`p-6 rounded-xl border ${cardBg}`}>
+            <h3 className={`font-semibold mb-4 ${textColor}`}>Receitas</h3>
+            <p className={subText}>Visualizações de receitas serão organizadas aqui.</p>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'budget' && (
+        <div className="space-y-6">
+          {/* TODO: Add budget vs actual report here */}
+          <div className={`p-6 rounded-xl border ${cardBg}`}>
+            <h3 className={`font-semibold mb-4 ${textColor}`}>Orçado vs Realizado</h3>
+            <p className={subText}>Relatório de orçado vs realizado será implementado aqui.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
