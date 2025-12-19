@@ -198,7 +198,6 @@ const CsvImporter: React.FC<CsvImporterProps> = ({
 
   const processCsvImport = () => {
     const newTransactions: Omit<Transaction, 'id'>[] = [];
-    const newEntities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }> = [];
     const errors: string[] = [];
     let skippedCount = 0;
     let updatedCount = 0;

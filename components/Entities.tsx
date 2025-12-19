@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Entity } from '../types';
-import { Plus, Trash2, Edit2, Building2, User, Users, Mail, Phone, Globe, MapPin, FileText, Tag } from 'lucide-react';
+import { Plus, Trash2, Edit2, Building2, User, Users, Mail, Phone, MapPin, FileText, Tag } from 'lucide-react';
 
 interface EntitiesProps {
   entities: Entity[];
