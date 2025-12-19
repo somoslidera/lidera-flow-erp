@@ -160,49 +160,43 @@ const App: React.FC = () => {
   }, []);
 
   // Migration helper: Convert category (string) to categoryId
-  const migrateTransactionCategories = async () => {
-    try {
-      const allTransactions = await transactionService.getAll();
-      const needsMigration = allTransactions.some(t => !t.categoryId && t.category);
-      
-      if (!needsMigration) {
-        console.log("No category migration needed");
-        return;
-      }
-
-      console.log("Starting category migration...");
-      let migratedCount = 0;
-
-      for (const transaction of allTransactions) {
-        if (!transaction.categoryId && transaction.category) {
-          // Find matching category by name
-          const matchingCategory = settings.categories.find(
-            c => c.name.toLowerCase() === transaction.category.toLowerCase()
-          );
-
-          if (matchingCategory) {
-            await transactionService.update(transaction.id, {
-              categoryId: matchingCategory.id,
-              category: transaction.category // Keep legacy field during migration
-            });
-            migratedCount++;
-          }
-        }
-      }
-
-      console.log(`Migration completed: ${migratedCount} transactions migrated`);
-      
-      // Reload transactions
-      const updatedTransactions = await transactionService.getAll();
-      setTransactions(updatedTransactions);
-    } catch (error) {
-      console.error("Error during category migration:", error);
-    }
-  };
-
-  // Migration can be triggered manually or during initial load if needed
-  // Commented out auto-migration to avoid infinite loops
-  // Call migrateTransactionCategories() manually if needed
+  // Note: Uncomment and call manually if migration is needed
+  // const migrateTransactionCategories = async () => {
+  //   try {
+  //     const allTransactions = await transactionService.getAll();
+  //     const needsMigration = allTransactions.some(t => !t.categoryId && t.category);
+  //     
+  //     if (!needsMigration) {
+  //       console.log("No category migration needed");
+  //       return;
+  //     }
+  //
+  //     console.log("Starting category migration...");
+  //     let migratedCount = 0;
+  //
+  //     for (const transaction of allTransactions) {
+  //       if (!transaction.categoryId && transaction.category) {
+  //         const matchingCategory = settings.categories.find(
+  //           c => c.name.toLowerCase() === transaction.category.toLowerCase()
+  //         );
+  //
+  //         if (matchingCategory) {
+  //           await transactionService.update(transaction.id, {
+  //             categoryId: matchingCategory.id,
+  //             category: transaction.category
+  //           });
+  //           migratedCount++;
+  //         }
+  //       }
+  //     }
+  //
+  //     console.log(`Migration completed: ${migratedCount} transactions migrated`);
+  //     const updatedTransactions = await transactionService.getAll();
+  //     setTransactions(updatedTransactions);
+  //   } catch (error) {
+  //     console.error("Error during category migration:", error);
+  //   }
+  // };
 
   const toggleTheme = () => setDarkMode(!darkMode);
 
