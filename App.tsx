@@ -56,25 +56,90 @@ const App: React.FC = () => {
 
   // Handlers
   const handleAddTransaction = async (t: Omit<Transaction, 'id'>) => {
-    const newId = Math.random().toString(36).substr(2, 9);
-    const newTransaction = { ...t, id: newId };
-    setTransactions([newTransaction, ...transactions]);
+    try {
+      // Save to Firebase
+      const docRef = await transactionService.add(t);
+      // Update local state with the new transaction (Firebase generates the ID)
+      const newTransaction = { ...t, id: docRef.id };
+      setTransactions([newTransaction, ...transactions]);
+    } catch (error: any) {
+      console.error("Error adding transaction to Firebase:", error);
+      // Fallback: add to local state with generated ID
+      const newId = Math.random().toString(36).substr(2, 9);
+      const newTransaction = { ...t, id: newId };
+      setTransactions([newTransaction, ...transactions]);
+      
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        alert("⚠️ ERRO: Permissão negada pelo Firestore.\n\nConfigure as regras de segurança no console do Firebase:\nhttps://console.firebase.google.com/project/lidera-flow/firestore/rules\n\nVeja o arquivo FIREBASE_SETUP.md para instruções.");
+      } else {
+        alert("Erro ao salvar no Firebase. A transação foi adicionada localmente.");
+      }
+    }
   };
 
   const handleBulkAddTransactions = async (newTs: Omit<Transaction, 'id'>[]) => {
-    const processed = newTs.map(t => ({
-      ...t,
-      id: Math.random().toString(36).substr(2, 9)
-    }));
-    setTransactions([...processed, ...transactions]);
+    try {
+      // Save all transactions to Firebase
+      const addedTransactions: Transaction[] = [];
+      for (const t of newTs) {
+        const docRef = await transactionService.add(t);
+        addedTransactions.push({ ...t, id: docRef.id });
+      }
+      // Update local state
+      setTransactions([...addedTransactions, ...transactions]);
+    } catch (error: any) {
+      console.error("Error bulk adding transactions to Firebase:", error);
+      // Fallback: add to local state with generated IDs
+      const processed = newTs.map(t => ({
+        ...t,
+        id: Math.random().toString(36).substr(2, 9)
+      }));
+      setTransactions([...processed, ...transactions]);
+      
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        alert("⚠️ ERRO: Permissão negada pelo Firestore.\n\nConfigure as regras de segurança no console do Firebase:\nhttps://console.firebase.google.com/project/lidera-flow/firestore/rules\n\nVeja o arquivo FIREBASE_SETUP.md para instruções.");
+      } else {
+        alert("Erro ao salvar algumas transações no Firebase. Elas foram adicionadas localmente.");
+      }
+    }
   };
 
-  const handleDeleteTransaction = (id: string) => {
-    setTransactions(transactions.filter(t => t.id !== id));
+  const handleDeleteTransaction = async (id: string) => {
+    try {
+      // Delete from Firebase
+      await transactionService.delete(id);
+      // Update local state
+      setTransactions(transactions.filter(t => t.id !== id));
+    } catch (error: any) {
+      console.error("Error deleting transaction from Firebase:", error);
+      // Still remove from local state for better UX
+      setTransactions(transactions.filter(t => t.id !== id));
+      
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        console.warn("⚠️ Permissão negada - Configure as regras do Firestore");
+      } else {
+        alert("Erro ao deletar no Firebase. A transação foi removida localmente.");
+      }
+    }
   };
 
-  const handleUpdateTransaction = (id: string, updated: Partial<Transaction>) => {
-    setTransactions(transactions.map(t => t.id === id ? { ...t, ...updated } : t));
+  const handleUpdateTransaction = async (id: string, updated: Partial<Transaction>) => {
+    try {
+      // Update in Firebase
+      await transactionService.update(id, updated);
+      // Update local state
+      setTransactions(transactions.map(t => t.id === id ? { ...t, ...updated } : t));
+    } catch (error: any) {
+      console.error("Error updating transaction in Firebase:", error);
+      // Still update local state for better UX
+      setTransactions(transactions.map(t => t.id === id ? { ...t, ...updated } : t));
+      
+      if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
+        console.warn("⚠️ Permissão negada - Configure as regras do Firestore");
+      } else {
+        alert("Erro ao atualizar no Firebase. A transação foi atualizada localmente.");
+      }
+    }
   };
 
   const handleUpdateSettings = (newSettings: AppSettings) => {

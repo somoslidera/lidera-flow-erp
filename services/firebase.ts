@@ -24,18 +24,49 @@ export const transactionService = {
     try {
       const querySnapshot = await getDocs(collection(db, TRANSACTIONS_COLLECTION));
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching transactions:", error);
+      if (error.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore no console do Firebase");
+        console.error("Acesse: https://console.firebase.google.com/project/lidera-flow/firestore/rules");
+      }
       return [];
     }
   },
   add: async (transaction: Omit<Transaction, 'id'>) => {
-    return await addDoc(collection(db, TRANSACTIONS_COLLECTION), transaction);
+    try {
+      return await addDoc(collection(db, TRANSACTIONS_COLLECTION), transaction);
+    } catch (error: any) {
+      console.error("Error adding transaction:", error);
+      if (error.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
   },
   update: async (id: string, data: Partial<Transaction>) => {
-    return await updateDoc(doc(db, TRANSACTIONS_COLLECTION, id), data);
+    try {
+      return await updateDoc(doc(db, TRANSACTIONS_COLLECTION, id), data);
+    } catch (error: any) {
+      console.error("Error updating transaction:", error);
+      if (error.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
   },
   delete: async (id: string) => {
-    return await deleteDoc(doc(db, TRANSACTIONS_COLLECTION, id));
+    try {
+      return await deleteDoc(doc(db, TRANSACTIONS_COLLECTION, id));
+    } catch (error: any) {
+      console.error("Error deleting transaction:", error);
+      if (error.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore");
+        throw new Error("Permissão negada pelo Firestore. Configure as regras de segurança.");
+      }
+      throw error;
+    }
   }
 };
