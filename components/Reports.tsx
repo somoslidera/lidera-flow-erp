@@ -22,30 +22,30 @@ const Reports: React.FC<ReportsProps> = ({ transactions, darkMode }) => {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
   // Data for Payables/Receivables
-  const pendingPayables = transactions.filter(t => t.type === 'Saída' && t.status === 'A pagar');
-  const pendingReceivables = transactions.filter(t => t.type === 'Entrada' && t.status === 'A receber');
-  const totalPayable = pendingPayables.reduce((acc, curr) => acc + curr.expectedAmount, 0);
-  const totalReceivable = pendingReceivables.reduce((acc, curr) => acc + curr.expectedAmount, 0);
+  const pendingPayables = transactions.filter(t => t.tipo === 'Saída' && t.status === 'A pagar');
+  const pendingReceivables = transactions.filter(t => t.tipo === 'Entrada' && t.status === 'A receber');
+  const totalPayable = pendingPayables.reduce((acc, curr) => acc + curr.valorPrevisto, 0);
+  const totalReceivable = pendingReceivables.reduce((acc, curr) => acc + curr.valorPrevisto, 0);
 
   // Data for DRE
   const dreData = useMemo(() => {
     // Filter by year
     const yearTransactions = transactions.filter(t => 
-       new Date(t.accrualDate).getFullYear() === selectedYear
+       new Date(t.dataCompetencia).getFullYear() === selectedYear
     );
 
-    const categories = Array.from(new Set(yearTransactions.map(t => t.category)));
+    const categories = Array.from(new Set(yearTransactions.map(t => t.categoria)));
     
     const reportData = categories.map(cat => {
-      const catTrans = yearTransactions.filter(t => t.category === cat);
-      const isIncome = catTrans[0]?.type === 'Entrada';
+      const catTrans = yearTransactions.filter(t => t.categoria === cat);
+      const isIncome = catTrans[0]?.tipo === 'Entrada';
       
       const realized = catTrans
         .filter(t => t.status === 'Pago' || t.status === 'Recebido')
-        .reduce((acc, t) => acc + t.actualAmount, 0);
+        .reduce((acc, t) => acc + t.valorRealizado, 0);
         
       const predicted = catTrans
-        .reduce((acc, t) => acc + t.expectedAmount, 0);
+        .reduce((acc, t) => acc + t.valorPrevisto, 0);
 
       return { category: cat, isIncome, realized, predicted };
     }).sort((a, b) => {
@@ -142,10 +142,10 @@ const Reports: React.FC<ReportsProps> = ({ transactions, darkMode }) => {
                   {pendingReceivables.slice(0, 10).map((t) => (
                     <div key={t.id} className={`flex justify-between items-center p-3 rounded border ${darkMode ? 'bg-zinc-950/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
                         <div>
-                          <p className={`font-medium text-sm ${textColor}`}>{t.description}</p>
-                          <p className={`text-xs ${subText}`}>{t.entity} • {t.dueDate}</p>
+                          <p className={`font-medium text-sm ${textColor}`}>{t.descricao}</p>
+                          <p className={`text-xs ${subText}`}>{t.entidade} • {t.dataVencimento}</p>
                         </div>
-                        <span className="font-medium text-emerald-500">{formatCurrency(t.expectedAmount)}</span>
+                        <span className="font-medium text-emerald-500">{formatCurrency(t.valorPrevisto)}</span>
                     </div>
                   ))}
                   {pendingReceivables.length === 0 && <p className={`text-center py-4 ${subText}`}>Nada pendente.</p>}
@@ -161,10 +161,10 @@ const Reports: React.FC<ReportsProps> = ({ transactions, darkMode }) => {
                   {pendingPayables.slice(0, 10).map((t) => (
                     <div key={t.id} className={`flex justify-between items-center p-3 rounded border ${darkMode ? 'bg-zinc-950/50 border-zinc-800' : 'bg-slate-50 border-slate-100'}`}>
                         <div>
-                          <p className={`font-medium text-sm ${textColor}`}>{t.description}</p>
-                          <p className={`text-xs ${subText}`}>{t.entity} • {t.dueDate}</p>
+                          <p className={`font-medium text-sm ${textColor}`}>{t.descricao}</p>
+                          <p className={`text-xs ${subText}`}>{t.entidade} • {t.dataVencimento}</p>
                         </div>
-                        <span className="font-medium text-red-500">{formatCurrency(t.expectedAmount)}</span>
+                        <span className="font-medium text-red-500">{formatCurrency(t.valorPrevisto)}</span>
                     </div>
                   ))}
                   {pendingPayables.length === 0 && <p className={`text-center py-4 ${subText}`}>Nada pendente.</p>}
