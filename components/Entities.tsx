@@ -354,7 +354,7 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
           onUpdate={(id, field, value) => {
             // Handle nested address field
             if (field === 'address' && typeof value === 'string') {
-              const entity = filteredEntities.find(e => e.id === id);
+              const entity = filteredAndSortedEntities.find((e: Entity) => e.id === id);
               onUpdateEntity(id, {
                 address: {
                   ...entity?.address,
