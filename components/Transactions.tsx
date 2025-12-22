@@ -3,6 +3,7 @@ import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown,
 import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity, SubcategoryItem } from '../types';
 import CsvImporter from './CsvImporter';
 import EditableTable from './EditableTable';
+import { authService } from '../services/firebase';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -16,13 +17,14 @@ interface TransactionsProps {
   onUpdate: (id: string, t: Partial<Transaction>) => void;
   onBulkAdd: (transactions: Omit<Transaction, 'id'>[]) => void;
   onImportEntities?: (entities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>) => void;
+  onAddEntity?: (entity: Omit<Entity, 'id'>) => void;
 }
 
 type SortField = 'dueDate' | 'description' | 'valor' | 'entity';
 type SortDirection = 'asc' | 'desc';
 
 const Transactions: React.FC<TransactionsProps> = ({ 
-  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities
+  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities, onAddEntity
 }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,6 +65,44 @@ const Transactions: React.FC<TransactionsProps> = ({
   };
 
   const [formData, setFormData] = useState(initialFormState);
+
+  // Entity creation modal state
+  const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
+  const [newEntityName, setNewEntityName] = useState('');
+  const [newEntityType, setNewEntityType] = useState<'Cliente' | 'Fornecedor' | 'Ambos'>('Cliente');
+
+  // Handler to create new entity
+  const handleCreateEntity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEntityName.trim() || !onAddEntity) return;
+
+    try {
+      const currentUser = authService?.getCurrentUser?.();
+      const userId = currentUser?.uid || 'system';
+      const now = new Date().toISOString();
+
+      const newEntity: Omit<Entity, 'id'> = {
+        name: newEntityName.trim(),
+        type: newEntityType,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: userId,
+        isActive: true
+      };
+
+      await onAddEntity(newEntity);
+      
+      // Update form to select the new entity immediately
+      setFormData({ ...formData, entity: newEntityName.trim() });
+      
+      // Close modal and reset form
+      setIsEntityModalOpen(false);
+      setNewEntityName('');
+    } catch (error: any) {
+      console.error("Error creating entity:", error);
+      alert("Erro ao criar entidade. Tente novamente.");
+    }
+  };
 
   // --- Handlers ---
 
@@ -558,13 +598,33 @@ const Transactions: React.FC<TransactionsProps> = ({
 
                 <div className="space-y-1">
                   <label className={`text-xs font-medium ${subText}`}>Entidade</label>
-                  <select className={`w-full p-2 rounded border ${inputBg}`} value={formData.entity} onChange={e => setFormData({...formData, entity: e.target.value})}>
-                     <option value="">Selecione...</option>
-                     {availableEntitiesList.map((e: any) => <option key={e.id || e.name} value={e.name}>{e.name}</option>)}
-                     {!availableEntitiesList.find((e: any) => e.name === formData.entity) && formData.entity && (
-                        <option value={formData.entity}>{formData.entity}</option>
-                     )}
-                  </select>
+                  <div className="flex gap-2">
+                    <select className={`flex-1 p-2 rounded border ${inputBg}`} value={formData.entity} onChange={e => setFormData({...formData, entity: e.target.value})}>
+                       <option value="">Selecione...</option>
+                       {availableEntitiesList.map((e: any) => <option key={e.id || e.name} value={e.name}>{e.name}</option>)}
+                       {!availableEntitiesList.find((e: any) => e.name === formData.entity) && formData.entity && (
+                          <option value={formData.entity}>{formData.entity}</option>
+                       )}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Set default type based on transaction type
+                        const defaultType = formData.type === 'Entrada' ? 'Cliente' : 'Fornecedor';
+                        setNewEntityType(defaultType);
+                        setNewEntityName('');
+                        setIsEntityModalOpen(true);
+                      }}
+                      className={`px-3 py-2 rounded border flex items-center gap-1 font-medium transition-colors ${
+                        darkMode 
+                          ? 'bg-zinc-800 border-zinc-700 text-yellow-400 hover:bg-zinc-700' 
+                          : 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
+                      }`}
+                      title="Adicionar nova entidade"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -652,6 +712,79 @@ const Transactions: React.FC<TransactionsProps> = ({
               <div className={`p-6 border-t flex justify-end gap-3 ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
                 <button type="button" onClick={closeModal} className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-100 text-slate-600'}`}>Cancelar</button>
                 <button type="submit" className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Salvar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Entity Creation Modal */}
+      {isEntityModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className={`w-full max-w-md rounded-xl shadow-2xl ${cardBg}`}>
+            <form onSubmit={handleCreateEntity}>
+              <div className={`p-6 border-b flex justify-between items-center ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+                <h3 className={`text-xl font-bold ${textColor}`}>Nova Entidade</h3>
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setIsEntityModalOpen(false);
+                    setNewEntityName('');
+                  }} 
+                  className={subText}
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <div className="space-y-1">
+                  <label className={`text-xs font-medium ${subText}`}>Nome da Entidade *</label>
+                  <input 
+                    required
+                    className={`w-full p-2 rounded border ${inputBg}`} 
+                    value={newEntityName} 
+                    onChange={e => setNewEntityName(e.target.value)}
+                    placeholder="Ex: Empresa XYZ"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className={`text-xs font-medium ${subText}`}>Tipo *</label>
+                  <select 
+                    className={`w-full p-2 rounded border ${inputBg}`} 
+                    value={newEntityType} 
+                    onChange={e => setNewEntityType(e.target.value as 'Cliente' | 'Fornecedor' | 'Ambos')}
+                  >
+                    <option value="Cliente">Cliente</option>
+                    <option value="Fornecedor">Fornecedor</option>
+                    <option value="Ambos">Ambos</option>
+                  </select>
+                </div>
+
+                <p className={`text-xs ${subText}`}>
+                  💡 A entidade será criada e automaticamente selecionada no formulário de lançamento.
+                </p>
+              </div>
+
+              <div className={`p-6 border-t flex justify-end gap-3 ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsEntityModalOpen(false);
+                    setNewEntityName('');
+                  }}
+                  className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                >
+                  Criar Entidade
+                </button>
               </div>
             </form>
           </div>

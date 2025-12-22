@@ -545,7 +545,11 @@ const App: React.FC = () => {
       };
       const docRef = await entityService.add(entityWithUser);
       const newEntity = { ...entityWithUser, id: docRef.id };
+      // Update entities list immediately for UI responsiveness
       setEntities([...entities, newEntity]);
+      // Also reload from Firebase to ensure consistency
+      const allEntities = await entityService.getAll();
+      setEntities(allEntities);
     } catch (error: any) {
       console.error("Error adding entity to Firebase:", error);
       if (error?.message?.includes('Permissão negada') || error?.code === 'permission-denied') {
@@ -553,6 +557,7 @@ const App: React.FC = () => {
       } else {
         alert("Erro ao salvar entidade no Firebase.");
       }
+      throw error; // Re-throw to let the component handle it
     }
   };
 
@@ -825,6 +830,7 @@ const App: React.FC = () => {
                 onUpdate={handleUpdateTransaction}
                 onBulkAdd={handleBulkAddTransactions}
                 onImportEntities={handleImportEntities}
+                onAddEntity={handleAddEntity}
               />
             } 
           />
@@ -843,6 +849,7 @@ const App: React.FC = () => {
                 onUpdate={handleUpdateTransaction}
                 onBulkAdd={handleBulkAddTransactions}
                 onImportEntities={handleImportEntities}
+                onAddEntity={handleAddEntity}
               />
             } 
           />
