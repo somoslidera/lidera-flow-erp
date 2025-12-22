@@ -26,7 +26,9 @@ export const transactionService = {
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
     } catch (error) {
       console.error("Error fetching transactions:", error);
-      return [];
+      // Re-throw to be caught by error handler
+      const errorMessage = error instanceof Error ? error.message : 'Erro ao conectar com o banco de dados';
+      throw new Error(`Falha ao carregar transações: ${errorMessage}`);
     }
   },
   add: async (transaction: Omit<Transaction, 'id'>) => {
