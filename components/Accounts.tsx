@@ -1,19 +1,17 @@
 import React, { useState } from 'react';
 import { Account, Transaction } from '../types';
-import { Plus, Wallet, Landmark, TrendingUp, TrendingDown, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Wallet, Landmark, TrendingUp, TrendingDown, Trash2 } from 'lucide-react';
 
 interface AccountsProps {
   accounts: Account[];
   transactions: Transaction[];
   darkMode: boolean;
   onAddAccount: (acc: Account) => void;
-  onUpdateAccount: (id: string, acc: Partial<Account>) => void;
   onDeleteAccount: (id: string) => void;
 }
 
-const Accounts: React.FC<AccountsProps> = ({ accounts, transactions, darkMode, onAddAccount, onUpdateAccount, onDeleteAccount }) => {
+const Accounts: React.FC<AccountsProps> = ({ accounts, transactions, darkMode, onAddAccount, onDeleteAccount }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountType, setNewAccountType] = useState<Account['type']>('Corrente');
   const [newAccountBalance, setNewAccountBalance] = useState(0);
@@ -31,49 +29,25 @@ const Accounts: React.FC<AccountsProps> = ({ accounts, transactions, darkMode, o
     let balance = account.initialBalance;
     transactions.forEach(t => {
       if (t.accountId === account.id && (t.status === 'Pago' || t.status === 'Recebido')) {
-        if (t.type === 'Entrada') balance += t.actualAmount;
-        else balance -= t.actualAmount;
+        if (t.tipo === 'Entrada') balance += t.valorRealizado;
+        else balance -= t.valorRealizado;
       }
     });
     return balance;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingAccountId) {
-      // Update existing account
-      onUpdateAccount(editingAccountId, {
-        name: newAccountName,
-        type: newAccountType,
-        initialBalance: newAccountBalance
-      });
-    } else {
-      // Create new account
-      const newAccount: Account = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: newAccountName,
-        type: newAccountType,
-        initialBalance: newAccountBalance,
-        color: '#3b82f6'
-      };
-      onAddAccount(newAccount);
-    }
-    closeModal();
-  };
-
-  const handleEdit = (account: Account) => {
-    setEditingAccountId(account.id);
-    setNewAccountName(account.name);
-    setNewAccountType(account.type);
-    setNewAccountBalance(account.initialBalance);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
+    const newAccount: Account = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newAccountName,
+      type: newAccountType,
+      initialBalance: newAccountBalance,
+      color: '#3b82f6'
+    };
+    onAddAccount(newAccount);
     setIsModalOpen(false);
-    setEditingAccountId(null);
     setNewAccountName('');
-    setNewAccountType('Corrente');
     setNewAccountBalance(0);
   };
 
@@ -102,24 +76,14 @@ const Accounts: React.FC<AccountsProps> = ({ accounts, transactions, darkMode, o
                 <div className={`p-3 rounded-lg ${darkMode ? 'bg-zinc-800' : 'bg-slate-100'}`}>
                   {account.type === 'Caixa' ? <Wallet className={subText} /> : <Landmark className={subText} />}
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {accounts.length > 1 && (
                   <button 
-                    onClick={() => handleEdit(account)}
-                    className="p-2 text-blue-500 hover:bg-blue-500/10 rounded"
-                    title="Editar conta"
+                    onClick={() => onDeleteAccount(account.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-red-500 hover:bg-red-500/10 rounded"
                   >
-                    <Edit2 size={16} />
+                    <Trash2 size={16} />
                   </button>
-                  {accounts.length > 1 && (
-                    <button 
-                      onClick={() => onDeleteAccount(account.id)}
-                      className="p-2 text-red-500 hover:bg-red-500/10 rounded"
-                      title="Excluir conta"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
               
               <h3 className={`font-semibold text-lg ${textColor}`}>{account.name}</h3>
@@ -149,10 +113,8 @@ const Accounts: React.FC<AccountsProps> = ({ accounts, transactions, darkMode, o
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className={`w-full max-w-md rounded-xl shadow-2xl p-6 ${cardBg}`}>
-            <h3 className={`text-xl font-bold mb-4 ${textColor}`}>
-              {editingAccountId ? 'Editar Conta' : 'Nova Conta'}
-            </h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <h3 className={`text-xl font-bold mb-4 ${textColor}`}>Nova Conta</h3>
+            <form onSubmit={handleAdd} className="space-y-4">
                <div>
                   <label className={`block text-sm font-medium mb-1 ${subText}`}>Nome da Conta</label>
                   <input required className={`w-full p-2 rounded border ${inputBg}`} value={newAccountName} onChange={e => setNewAccountName(e.target.value)} placeholder="Ex: Nubank, Caixa Loja..." />
@@ -172,10 +134,8 @@ const Accounts: React.FC<AccountsProps> = ({ accounts, transactions, darkMode, o
                </div>
                
                <div className="flex justify-end gap-2 mt-6">
-                 <button type="button" onClick={closeModal} className={`px-4 py-2 rounded font-medium ${darkMode ? 'text-zinc-300 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100'}`}>Cancelar</button>
-                 <button type="submit" className={`px-4 py-2 rounded font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'}`}>
-                   {editingAccountId ? 'Salvar Alterações' : 'Criar Conta'}
-                 </button>
+                 <button type="button" onClick={() => setIsModalOpen(false)} className={`px-4 py-2 rounded font-medium ${darkMode ? 'text-zinc-300 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100'}`}>Cancelar</button>
+                 <button type="submit" className={`px-4 py-2 rounded font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'}`}>Criar Conta</button>
                </div>
             </form>
           </div>

@@ -10,21 +10,16 @@ import {
   Sun,
   Moon,
   Landmark,
-  HelpCircle,
-  LogOut,
-  Users,
-  DollarSign
+  HelpCircle
 } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
   darkMode: boolean;
   toggleTheme: () => void;
-  user?: { displayName?: string | null; email?: string | null; photoURL?: string | null };
-  onSignOut?: () => void;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, onSignOut }) => {
+const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -33,10 +28,7 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/transactions', icon: ArrowRightLeft, label: 'Lançamentos' },
     { to: '/accounts', icon: Landmark, label: 'Contas & Caixas' },
-    { to: '/entities', icon: Users, label: 'Fornecedores & Clientes' },
     { to: '/reports', icon: PieChart, label: 'Relatórios' },
-    { to: '/cashflow-report', icon: ArrowRightLeft, label: 'Fluxo de Caixa' },
-    { to: '/budget', icon: DollarSign, label: 'Orçamento' },
     { to: '/settings', icon: Settings, label: 'Configurações' },
     { to: '/help', icon: HelpCircle, label: 'Ajuda' },
   ];
@@ -46,8 +38,10 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
   const mainBg = darkMode ? 'bg-zinc-950' : 'bg-slate-50';
   const textColor = darkMode ? 'text-zinc-100' : 'text-slate-800';
   
-  // Logo Logic - Use local logo from public folder
-  const logoUrl = "/lidera-logo.png";
+  // Logo Logic
+  const logoUrl = darkMode 
+    ? "https://i.imgur.com/7gq3Tf6.png"  // White Logo for Dark Mode
+    : "https://i.imgur.com/2s0t654.png"; // Blue Logo for Light Mode
 
   const NavItem = ({ to, icon: Icon, label }: any) => (
     <NavLink
@@ -73,13 +67,12 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
       
       {/* Sidebar for Desktop */}
       <aside className={`hidden md:flex w-64 flex-col border-r ${sidebarBg} transition-colors duration-300`}>
-        <div className="p-6 flex items-center justify-center gap-3">
+        <div className="p-6 flex items-center justify-center">
           <img 
             src={logoUrl} 
-            alt="Lidera Logo" 
-            className="h-10 w-auto object-contain transition-opacity duration-300" 
+            alt="Lidera Flow Logo" 
+            className="h-16 w-auto object-contain transition-opacity duration-300" 
           />
-          <span className={`text-xl font-bold ${textColor}`}>Lidera Flow</span>
         </div>
         
         <nav className="flex-1 px-4 space-y-2 mt-2">
@@ -87,39 +80,16 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
         </nav>
 
         <div className="p-4 border-t border-gray-200 dark:border-zinc-800">
-           <div className={`p-4 rounded-xl ${darkMode ? 'bg-zinc-800/50' : 'bg-slate-100'}`}>
-              <div className="flex items-center gap-3 mb-3">
-                {user?.photoURL ? (
-                  <img 
-                    src={user.photoURL} 
-                    alt={user.displayName || 'User'} 
-                    className="w-10 h-10 rounded-full"
-                  />
-                ) : (
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${darkMode ? 'bg-yellow-500/20 text-yellow-500' : 'bg-blue-500/20 text-blue-600'}`}>
-                    <span className="font-bold text-sm">
-                      {user?.displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || 'U'}
-                    </span>
-                  </div>
-                )}
-                <div className="flex-1 text-sm min-w-0">
-                  <p className="font-semibold truncate">{user?.displayName || 'Usuário'}</p>
-                  <p className="text-xs opacity-60 truncate">{user?.email || ''}</p>
+           <div className={`p-4 rounded-xl ${darkMode ? 'bg-zinc-800/50' : 'bg-slate-100'} flex items-center justify-between`}>
+              <div className="flex items-center gap-2">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-yellow-500/20 text-yellow-500' : 'bg-blue-500/20 text-blue-600'}`}>
+                    <span className="font-bold text-xs">LF</span>
+                </div>
+                <div className="text-sm">
+                  <p className="font-semibold">Admin</p>
+                  <p className="text-xs opacity-60">Financeiro</p>
                 </div>
               </div>
-              {onSignOut && (
-                <button
-                  onClick={onSignOut}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    darkMode 
-                      ? 'text-zinc-300 hover:bg-zinc-800 hover:text-red-400' 
-                      : 'text-slate-600 hover:bg-slate-200 hover:text-red-600'
-                  }`}
-                >
-                  <LogOut size={16} />
-                  <span>Sair</span>
-                </button>
-              )}
            </div>
         </div>
       </aside>
@@ -128,14 +98,11 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Mobile Header */}
         <header className={`md:hidden flex items-center justify-between p-4 border-b ${sidebarBg}`}>
-          <div className="flex items-center gap-2">
-            <img 
-              src={logoUrl} 
-              alt="Lidera Logo" 
-              className="h-8 w-auto object-contain" 
-            />
-            <span className={`text-lg font-bold ${textColor}`}>Lidera Flow</span>
-          </div>
+          <img 
+            src={logoUrl} 
+            alt="Lidera Flow Logo" 
+            className="h-10 w-auto object-contain" 
+          />
           <button onClick={toggleMobileMenu} className="p-2">
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
@@ -145,14 +112,11 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
         {isMobileMenuOpen && (
           <div className={`absolute inset-0 z-50 ${sidebarBg} md:hidden flex flex-col p-4`}>
              <div className="flex justify-between items-center mb-8">
-                <div className="flex items-center gap-2">
-                  <img 
-                    src={logoUrl} 
-                    alt="Lidera Logo" 
-                    className="h-10 w-auto object-contain" 
-                  />
-                  <span className={`text-lg font-bold ${textColor}`}>Lidera Flow</span>
-                </div>
+                <img 
+                  src={logoUrl} 
+                  alt="Lidera Flow Logo" 
+                  className="h-12 w-auto object-contain" 
+                />
                 <button onClick={toggleMobileMenu}><X size={24}/></button>
              </div>
              <nav className="space-y-2">
