@@ -17,7 +17,19 @@ const Login: React.FC<LoginProps> = ({ darkMode }) => {
       await authService.signInWithGoogle();
     } catch (error: any) {
       console.error("Login error:", error);
-      setError(error.message || "Erro ao fazer login. Tente novamente.");
+      let errorMessage = "Erro ao fazer login. Tente novamente.";
+      
+      if (error?.code === 'auth/popup-closed-by-user') {
+        errorMessage = "Login cancelado. Por favor, tente novamente.";
+      } else if (error?.code === 'auth/popup-blocked') {
+        errorMessage = "Popup bloqueado pelo navegador. Por favor, permita popups para este site.";
+      } else if (error?.code === 'auth/network-request-failed') {
+        errorMessage = "Erro de conexão. Verifique sua conexão com a internet.";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
       setLoading(false);
     }
   };

@@ -34,6 +34,7 @@ const App: React.FC = () => {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [settings, setSettings] = useState<AppSettings>(MOCK_SETTINGS);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // Apply theme class to html body
@@ -48,18 +49,28 @@ const App: React.FC = () => {
 
   // Auth State Listener
   useEffect(() => {
-    const unsubscribe = authService.onAuthStateChanged((user) => {
-      setUser(user);
+    try {
+      const unsubscribe = authService.onAuthStateChanged((user) => {
+        setUser(user);
+        setAuthLoading(false);
+      });
+      return () => unsubscribe();
+    } catch (error: any) {
+      console.error("Auth state listener error:", error);
       setAuthLoading(false);
-    });
-    return () => unsubscribe();
+    }
   }, []);
 
   useEffect(() => {
     const fetchAllData = async () => {
       try {
-        // Fetch all data from Firebase in parallel
-        const [firebaseTransactions, firebaseSettings, firebaseAccounts, firebaseEntities, firebaseSubcategories, firebaseBudgets] = await Promise.all([
+        // Fetch all data from Firebase in parallel with timeout
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout: A conexão com o Firebase está demorando muito. Verifique sua conexão com a internet.')), 30000); // 30 seconds
+        });
+        
+        const fetchPromise = Promise.all([
           transactionService.getAll(),
           settingsService.get(),
           accountsService.getAll(),
@@ -67,6 +78,8 @@ const App: React.FC = () => {
           subcategoryService.getAll(),
           budgetService.getAll()
         ]);
+        
+        const [firebaseTransactions, firebaseSettings, firebaseAccounts, firebaseEntities, firebaseSubcategories, firebaseBudgets] = await Promise.race([fetchPromise, timeoutPromise]);
 
         // Set transactions
         setTransactions(firebaseTransactions);
@@ -84,8 +97,12 @@ const App: React.FC = () => {
           try {
             await settingsService.save(MOCK_SETTINGS);
             console.log("Settings initialized in Firebase");
-          } catch (error) {
+          } catch (error: any) {
             console.error("Failed to initialize settings in Firebase:", error);
+            const errorMsg = error?.code === 'permission-denied' 
+              ? "Erro ao inicializar configurações: Permissão negada pelo Firestore."
+              : "Erro ao inicializar configurações no Firebase.";
+            setError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
           }
         }
 
@@ -107,8 +124,12 @@ const App: React.FC = () => {
               setAccounts(savedAccounts);
             }
             console.log("Accounts initialized in Firebase");
-          } catch (error) {
+          } catch (error: any) {
             console.error("Failed to initialize accounts in Firebase:", error);
+            const errorMsg = error?.code === 'permission-denied' 
+              ? "Erro ao inicializar contas: Permissão negada pelo Firestore."
+              : "Erro ao inicializar contas no Firebase.";
+            setError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
           }
         }
 
@@ -140,8 +161,12 @@ const App: React.FC = () => {
               const migratedEntities = await entityService.getAll();
               setEntities(migratedEntities);
               console.log(`Migrated ${migratedEntities.length} entities from settings to new collection`);
-            } catch (error) {
+            } catch (error: any) {
               console.error("Failed to migrate entities from settings:", error);
+              const errorMsg = error?.code === 'permission-denied' 
+                ? "Erro ao migrar entidades: Permissão negada pelo Firestore."
+                : "Erro ao migrar entidades no Firebase.";
+              setError(prev => prev ? `${prev}\n${errorMsg}` : errorMsg);
             }
           }
         }
@@ -151,8 +176,20 @@ const App: React.FC = () => {
         
         // Set budgets
         setBudgets(firebaseBudgets);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching data from Firebase:", error);
+        // Set error message for user
+        let errorMessage = "Erro ao carregar dados do Firebase.";
+        
+        if (error?.code === 'permission-denied') {
+          errorMessage = "Erro de permissão: Configure as regras de segurança do Firestore no console do Firebase.";
+        } else if (error?.code === 'unavailable' || error?.message?.includes('network') || error?.message?.includes('fetch') || error?.message?.includes('Timeout')) {
+          errorMessage = "Erro de conexão: Verifique sua conexão com a internet e tente novamente.";
+        } else if (error?.message) {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
         // Fallback to mock data on error
         setTransactions(MOCK_TRANSACTIONS);
         setSettings(MOCK_SETTINGS);
@@ -682,8 +719,19 @@ const App: React.FC = () => {
   // Show loading while checking auth
   if (authLoading || loading) {
     return (
-      <div className={`h-screen w-full flex items-center justify-center ${darkMode ? 'bg-zinc-950 text-yellow-500' : 'bg-slate-50 text-blue-600'}`}>
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-current"></div>
+      <div className={`h-screen w-full flex flex-col items-center justify-center gap-4 ${darkMode ? 'bg-zinc-950 text-yellow-500' : 'bg-slate-50 text-blue-600'}`}>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-current"></div>
+          <p className="text-sm font-medium">
+            {authLoading ? 'Verificando autenticação...' : 'Carregando dados...'}
+          </p>
+        </div>
+        {error && (
+          <div className={`max-w-md p-4 rounded-lg ${darkMode ? 'bg-red-950/20 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-700'} border`}>
+            <p className="font-semibold mb-1">⚠️ Erro ao carregar</p>
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -696,6 +744,26 @@ const App: React.FC = () => {
   return (
     <Router>
       <Layout darkMode={darkMode} toggleTheme={toggleTheme} user={user} onSignOut={() => authService.signOut()}>
+        {error && (
+          <div className={`sticky top-0 z-50 p-4 ${darkMode ? 'bg-red-950/90 border-b border-red-800 text-red-300' : 'bg-red-50 border-b border-red-200 text-red-700'}`}>
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <p className="font-semibold mb-1">⚠️ Erro ao carregar dados</p>
+                <p className="text-sm">{error}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  darkMode 
+                    ? 'bg-red-800 hover:bg-red-700 text-white' 
+                    : 'bg-red-200 hover:bg-red-300 text-red-800'
+                }`}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
         <Routes>
           <Route 
             path="/" 

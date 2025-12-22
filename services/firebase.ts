@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
+import { initializeApp, FirebaseApp } from "firebase/app";
+import { getFirestore, Firestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc } from "firebase/firestore";
+import { getAuth, Auth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
 import { Transaction, AppSettings, Account, Entity, SubcategoryItem, Budget } from "../types";
 
 const firebaseConfig = {
@@ -12,9 +12,22 @@ const firebaseConfig = {
   appId: "1:1056347988400:web:a778fca5744be21b85b675"
 };
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+// Initialize Firebase
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
+
+try {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+  console.log('✅ Firebase inicializado com sucesso');
+} catch (error: any) {
+  console.error('❌ Erro ao inicializar Firebase:', error);
+  throw new Error(`Falha ao inicializar Firebase: ${error?.message || 'Erro desconhecido'}`);
+}
+
+export { db, auth };
 const googleProvider = new GoogleAuthProvider();
 
 // Collection References
@@ -26,6 +39,18 @@ export const SUBCATEGORIES_COLLECTION = "subcategories";
 export const BUDGETS_COLLECTION = "budgets";
 const SETTINGS_DOC_ID = "main"; // Single document for settings
 
+// Helper function to handle Firebase errors
+const handleFirebaseError = (error: any, context: string): void => {
+  if (error?.code === 'permission-denied') {
+    console.error(`❌ PERMISSÃO NEGADA (${context}): Verifique as regras de segurança do Firestore`);
+    console.error("Acesse: https://console.firebase.google.com/project/lidera-flow/firestore/rules");
+  } else if (error?.code === 'unavailable' || error?.message?.includes('network') || error?.message?.includes('fetch')) {
+    console.error(`❌ ERRO DE CONEXÃO (${context}): Verifique sua conexão com a internet`);
+  } else {
+    console.error(`❌ Erro em ${context}:`, error);
+  }
+};
+
 // Service functions
 export const transactionService = {
   getAll: async (): Promise<Transaction[]> => {
@@ -33,10 +58,9 @@ export const transactionService = {
       const querySnapshot = await getDocs(collection(db, TRANSACTIONS_COLLECTION));
       return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
     } catch (error: any) {
-      console.error("Error fetching transactions:", error);
-      if (error?.code === 'permission-denied') {
-        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore no console do Firebase");
-        console.error("Acesse: https://console.firebase.google.com/project/lidera-flow/firestore/rules");
+      handleFirebaseError(error, 'transactionService.getAll');
+      if (error?.code === 'unavailable' || error?.message?.includes('network') || error?.message?.includes('fetch')) {
+        throw new Error("Erro de conexão com o Firebase. Verifique sua conexão com a internet.");
       }
       return [];
     }
