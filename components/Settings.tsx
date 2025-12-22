@@ -44,7 +44,6 @@ const Settings: React.FC<SettingsProps> = ({
     setItemName('');
     // Set default types based on tab
     if (activeTab === 'categories') setItemType('Despesa');
-    if (activeTab === 'entities') setItemType('Cliente');
     setIsModalOpen(true);
   };
 
@@ -70,12 +69,6 @@ const Settings: React.FC<SettingsProps> = ({
         id: Math.random().toString(36).substr(2, 9), 
         name: itemName, 
         type: itemType as 'Receita' | 'Despesa' 
-      };
-    } else if (activeTab === 'entities') {
-      newItem = { 
-        id: Math.random().toString(36).substr(2, 9), 
-        name: itemName, 
-        type: itemType as 'Cliente' | 'Fornecedor' | 'Ambos'
       };
     } else {
       newItem = itemName; // String arrays
@@ -175,7 +168,6 @@ const Settings: React.FC<SettingsProps> = ({
 
   const tabs: { key: keyof AppSettings; label: string }[] = [
     { key: 'categories', label: 'Categorias' },
-    { key: 'entities', label: 'Entidades' },
     { key: 'paymentMethods', label: 'Formas de Pagamento' },
     { key: 'costCenters', label: 'Centros de Custo' },
   ];
@@ -364,27 +356,6 @@ const Settings: React.FC<SettingsProps> = ({
                             className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-2 text-sm font-medium transition-colors ${
                               itemType === t 
                                 ? (t === 'Receita' ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-red-500 text-white border-red-600')
-                                : (darkMode ? 'bg-zinc-800 border-zinc-700 text-zinc-400' : 'bg-slate-50 border-slate-200 text-slate-600')
-                            }`}
-                          >
-                            {itemType === t && <Check size={14} />} {t}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                 )}
-
-                {activeTab === 'entities' && (
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${subText}`}>Tipo da Entidade</label>
-                      <div className="flex gap-2">
-                        {['Cliente', 'Fornecedor', 'Ambos'].map(t => (
-                          <button
-                            key={t}
-                            onClick={() => setItemType(t)}
-                            className={`flex-1 py-2 rounded-lg border flex items-center justify-center gap-2 text-xs font-medium transition-colors ${
-                              itemType === t 
-                                ? (darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white')
                                 : (darkMode ? 'bg-zinc-800 border-zinc-700 text-zinc-400' : 'bg-slate-50 border-slate-200 text-slate-600')
                             }`}
                           >

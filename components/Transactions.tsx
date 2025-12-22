@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List, Filter, XCircle } from 'lucide-react';
 import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity, SubcategoryItem } from '../types';
 import CsvImporter from './CsvImporter';
 import EditableTable from './EditableTable';
@@ -30,6 +30,18 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'editable'>('table');
+  
+  // Advanced Filters State
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'Entrada' | 'Saída'>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterEntity, setFilterEntity] = useState<string>('all');
+  const [filterAccount, setFilterAccount] = useState<string>('all');
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
+  const [filterAmountMin, setFilterAmountMin] = useState<string>('');
+  const [filterAmountMax, setFilterAmountMax] = useState<string>('');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -211,6 +223,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const filteredAndSortedData = useMemo(() => {
     const filterLower = filter.toLowerCase();
     const filtered = transactions.filter(t => {
+      // Text search filter
       const categoryName = t.categoryId 
         ? getCategoryName(t.categoryId) 
         : t.category || '';
@@ -218,12 +231,36 @@ const Transactions: React.FC<TransactionsProps> = ({
         ? getSubcategoryName(t.subcategoryId) 
         : '';
       
-      return (
+      const matchesText = filter === '' || (
         t.description?.toLowerCase().includes(filterLower) ||
         (t.entity && t.entity.toLowerCase().includes(filterLower)) ||
         categoryName?.toLowerCase().includes(filterLower) ||
         subcategoryName?.toLowerCase().includes(filterLower)
       );
+      
+      // Advanced filters
+      const matchesType = filterType === 'all' || t.type === filterType;
+      const matchesStatus = filterStatus === 'all' || t.status === filterStatus;
+      const matchesCategory = filterCategory === 'all' || 
+        (t.categoryId === filterCategory) || 
+        (t.categoryId && getCategoryName(t.categoryId) === filterCategory) ||
+        (t.category === filterCategory);
+      const matchesEntity = filterEntity === 'all' || 
+        (t.entity && t.entity.toLowerCase() === filterEntity.toLowerCase());
+      const matchesAccount = filterAccount === 'all' || t.accountId === filterAccount;
+      
+      // Date filters
+      const matchesDateFrom = !filterDateFrom || t.dueDate >= filterDateFrom;
+      const matchesDateTo = !filterDateTo || t.dueDate <= filterDateTo;
+      
+      // Amount filters
+      const transactionAmount = t.status === 'Pago' || t.status === 'Recebido' ? t.actualAmount : t.expectedAmount;
+      const matchesAmountMin = !filterAmountMin || transactionAmount >= parseFloat(filterAmountMin);
+      const matchesAmountMax = !filterAmountMax || transactionAmount <= parseFloat(filterAmountMax);
+      
+      return matchesText && matchesType && matchesStatus && matchesCategory && 
+             matchesEntity && matchesAccount && matchesDateFrom && matchesDateTo &&
+             matchesAmountMin && matchesAmountMax;
     });
 
     return filtered.sort((a, b) => {
@@ -382,30 +419,181 @@ const Transactions: React.FC<TransactionsProps> = ({
       </div>
 
       {/* Filters & Controls */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
-          <input 
-            type="text"
-            placeholder="Buscar por descrição, categoria, entidade..."
-            value={filter}
-            onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }} // Reset page on filter
-            className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
-          />
-        </div>
-        {viewMode === 'table' && (
+      <div className="space-y-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4 justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
+            <input 
+              type="text"
+              placeholder="Buscar por descrição, categoria, entidade..."
+              value={filter}
+              onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }}
+              className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
+            />
+          </div>
           <div className="flex items-center gap-2">
-             <span className={`text-sm ${subText}`}>Itens por página:</span>
-             <select 
-                value={itemsPerPage} 
-                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                className={`p-2 rounded-lg border outline-none ${inputBg}`}
-             >
-               <option value={10}>10</option>
-               <option value={25}>25</option>
-               <option value={50}>50</option>
-               <option value={100}>100</option>
-             </select>
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium transition-colors ${
+                showAdvancedFilters
+                  ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
+                  : darkMode ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              <Filter size={18} />
+              <span>Filtros Avançados</span>
+            </button>
+            {viewMode === 'table' && (
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${subText}`}>Itens por página:</span>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                  className={`p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Advanced Filters Panel */}
+        {showAdvancedFilters && (
+          <div className={`p-4 rounded-xl border ${cardBg} space-y-4`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className={`text-sm font-semibold ${textColor}`}>Filtros Avançados</h3>
+              <button
+                onClick={() => {
+                  setFilterType('all');
+                  setFilterStatus('all');
+                  setFilterCategory('all');
+                  setFilterEntity('all');
+                  setFilterAccount('all');
+                  setFilterDateFrom('');
+                  setFilterDateTo('');
+                  setFilterAmountMin('');
+                  setFilterAmountMax('');
+                  setCurrentPage(1);
+                }}
+                className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${subText} hover:underline`}
+              >
+                <XCircle size={14} />
+                Limpar Filtros
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Tipo</label>
+                <select 
+                  value={filterType} 
+                  onChange={(e) => { setFilterType(e.target.value as any); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todos</option>
+                  <option value="Entrada">Entrada</option>
+                  <option value="Saída">Saída</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Status</label>
+                <select 
+                  value={filterStatus} 
+                  onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todos</option>
+                  <option value="A pagar">A pagar</option>
+                  <option value="Pago">Pago</option>
+                  <option value="A receber">A receber</option>
+                  <option value="Recebido">Recebido</option>
+                  <option value="Atrasado">Atrasado</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Categoria</label>
+                <select 
+                  value={filterCategory} 
+                  onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {settings.categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Entidade</label>
+                <select 
+                  value={filterEntity} 
+                  onChange={(e) => { setFilterEntity(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {entities.map(e => (
+                    <option key={e.id} value={e.name}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Conta</label>
+                <select 
+                  value={filterAccount} 
+                  onChange={(e) => { setFilterAccount(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Data Inicial</label>
+                <input 
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => { setFilterDateFrom(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Data Final</label>
+                <input 
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => { setFilterDateTo(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Valor Mínimo</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={filterAmountMin}
+                  onChange={(e) => { setFilterAmountMin(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Valor Máximo</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={filterAmountMax}
+                  onChange={(e) => { setFilterAmountMax(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+            </div>
           </div>
         )}
       </div>

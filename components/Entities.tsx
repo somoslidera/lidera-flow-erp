@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Entity } from '../types';
-import { Plus, Trash2, Edit2, Building2, User, Users, Mail, Phone, MapPin, FileText, Tag, Table, Grid } from 'lucide-react';
+import { Plus, Trash2, Edit2, Building2, User, Users, Mail, Phone, MapPin, FileText, Tag, Table, Grid, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import EditableTable from './EditableTable';
 
 interface EntitiesProps {
@@ -17,6 +17,16 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
   const [filterType, setFilterType] = useState<'all' | 'Cliente' | 'Fornecedor' | 'Ambos'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'editable'>('grid');
+  
+  // Sorting State
+  type SortField = 'name' | 'type' | 'email' | 'city' | 'createdAt';
+  type SortDirection = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
 
   // Form State
   const [formName, setFormName] = useState('');
@@ -124,15 +134,79 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
     resetForm();
   };
 
-  const filteredEntities = entities.filter(entity => {
-    const matchesType = filterType === 'all' || entity.type === filterType || entity.type === 'Ambos';
-    const matchesSearch = searchTerm === '' || 
-      entity.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entity.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      entity.phone?.includes(searchTerm) ||
-      entity.document?.includes(searchTerm);
-    return matchesType && matchesSearch && entity.isActive !== false;
-  });
+  // Filtering, Sorting, and Pagination
+  const filteredAndSortedEntities = useMemo(() => {
+    // Filter
+    const filtered = entities.filter(entity => {
+      const matchesType = filterType === 'all' || entity.type === filterType || entity.type === 'Ambos';
+      const matchesSearch = searchTerm === '' || 
+        entity.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        entity.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        entity.phone?.includes(searchTerm) ||
+        entity.document?.includes(searchTerm) ||
+        entity.address?.city?.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesType && matchesSearch && entity.isActive !== false;
+    });
+
+    // Sort
+    const sorted = [...filtered].sort((a, b) => {
+      let valA: any;
+      let valB: any;
+
+      switch (sortField) {
+        case 'name':
+          valA = a.name.toLowerCase();
+          valB = b.name.toLowerCase();
+          break;
+        case 'type':
+          valA = a.type;
+          valB = b.type;
+          break;
+        case 'email':
+          valA = a.email?.toLowerCase() || '';
+          valB = b.email?.toLowerCase() || '';
+          break;
+        case 'city':
+          valA = a.address?.city?.toLowerCase() || '';
+          valB = b.address?.city?.toLowerCase() || '';
+          break;
+        case 'createdAt':
+          valA = a.createdAt || '';
+          valB = b.createdAt || '';
+          break;
+        default:
+          return 0;
+      }
+
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  }, [entities, filterType, searchTerm, sortField, sortDirection]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedEntities.length / itemsPerPage);
+  const paginatedEntities = filteredAndSortedEntities.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1); // Reset to first page on sort
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-30" />;
+    return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -194,13 +268,13 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
 
       {/* Filters */}
       <div className={`p-4 rounded-xl border ${cardBg}`}>
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="flex-1">
             <input
               type="text"
               placeholder="Buscar por nome, email, telefone ou documento..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className={`w-full p-2 rounded-lg border ${inputBg}`}
             />
           </div>
@@ -208,7 +282,7 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
             {(['all', 'Cliente', 'Fornecedor', 'Ambos'] as const).map(type => (
               <button
                 key={type}
-                onClick={() => setFilterType(type)}
+                onClick={() => { setFilterType(type); setCurrentPage(1); }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   filterType === type
                     ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
@@ -220,12 +294,48 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
             ))}
           </div>
         </div>
+        {viewMode === 'grid' && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${subText}`}>Ordenar por:</span>
+              <div className="flex gap-2">
+                {(['name', 'type', 'email', 'city'] as SortField[]).map(field => (
+                  <button
+                    key={field}
+                    onClick={() => handleSort(field)}
+                    className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
+                      sortField === field
+                        ? darkMode ? 'bg-zinc-800 text-yellow-400' : 'bg-blue-50 text-blue-600'
+                        : darkMode ? 'bg-zinc-800/50 text-zinc-400 hover:bg-zinc-800' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {field === 'name' ? 'Nome' : field === 'type' ? 'Tipo' : field === 'email' ? 'Email' : 'Cidade'}
+                    <SortIcon field={field} />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${subText}`}>Itens por página:</span>
+              <select 
+                value={itemsPerPage} 
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className={`p-2 rounded-lg border outline-none ${inputBg}`}
+              >
+                <option value={12}>12</option>
+                <option value={24}>24</option>
+                <option value={48}>48</option>
+                <option value={96}>96</option>
+              </select>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Editable Table View */}
       {viewMode === 'editable' ? (
         <EditableTable
-          data={filteredEntities}
+          data={filteredAndSortedEntities}
           columns={[
             { key: 'id', label: 'ID', type: 'text', width: '120px' },
             { key: 'name', label: 'Nome', type: 'text' },
@@ -263,13 +373,14 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
       ) : (
         /* Entities Grid */
         <>
-          {filteredEntities.length === 0 ? (
+          {filteredAndSortedEntities.length === 0 ? (
             <div className={`p-8 text-center rounded-xl border ${cardBg}`}>
               <p className={subText}>Nenhuma entidade encontrada</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredEntities.map(entity => (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {paginatedEntities.map(entity => (
                 <div key={entity.id} className={`p-5 rounded-xl border relative group ${cardBg}`}>
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-2">
@@ -342,8 +453,35 @@ const Entities: React.FC<EntitiesProps> = ({ entities, darkMode, onAddEntity, on
                     )}
                   </div>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className={`mt-6 p-4 border-t flex items-center justify-between ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
+                  <div className={`text-sm ${subText}`}>
+                    Mostrando {Math.min(filteredAndSortedEntities.length, (currentPage - 1) * itemsPerPage + 1)} até {Math.min(filteredAndSortedEntities.length, currentPage * itemsPerPage)} de {filteredAndSortedEntities.length} registros
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className={`p-2 rounded-lg border disabled:opacity-50 ${darkMode ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-50'}`}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className={`text-sm font-medium ${textColor}`}>Página {currentPage} de {totalPages || 1}</span>
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`p-2 rounded-lg border disabled:opacity-50 ${darkMode ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-50'}`}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
