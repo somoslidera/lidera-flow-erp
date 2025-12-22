@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 assets/lidera-lancamentos.csv
 assets/lidera-parametros.csv
+.vercel
+.env*.local
