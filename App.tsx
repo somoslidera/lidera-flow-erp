@@ -63,6 +63,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const fetchAllData = async () => {
+      console.log('🔄 Iniciando carregamento de dados...');
+      setLoading(true); // Garantir que loading está true ao iniciar
+      
+      // Timeout de segurança para garantir que loading sempre seja false
+      const safetyTimeout = setTimeout(() => {
+        console.warn('⚠️ Timeout de segurança: forçando loading como false após 35 segundos');
+        setLoading(false);
+      }, 35000);
+      
       try {
         // Fetch all data from Firebase in parallel with timeout
         // Add timeout to prevent infinite loading
@@ -80,6 +89,8 @@ const App: React.FC = () => {
         ]);
         
         const [firebaseTransactions, firebaseSettings, firebaseAccounts, firebaseEntities, firebaseSubcategories, firebaseBudgets] = await Promise.race([fetchPromise, timeoutPromise]);
+        
+        clearTimeout(safetyTimeout); // Limpar timeout de segurança se tudo der certo
 
         // Set transactions
         setTransactions(firebaseTransactions);
@@ -176,6 +187,7 @@ const App: React.FC = () => {
         
         // Set budgets
         setBudgets(firebaseBudgets);
+        console.log('✅ Dados carregados com sucesso');
       } catch (error: any) {
         console.error("Error fetching data from Firebase:", error);
         // Set error message for user
@@ -195,12 +207,19 @@ const App: React.FC = () => {
         setSettings(MOCK_SETTINGS);
         setAccounts(MOCK_ACCOUNTS);
       } finally {
+        clearTimeout(safetyTimeout); // Garantir que o timeout de segurança seja limpo
+        console.log('✅ Carregamento finalizado, definindo loading como false');
         setLoading(false);
       }
     };
 
     if (user) {
+      console.log('👤 Usuário autenticado, iniciando carregamento de dados');
       fetchAllData();
+    } else {
+      // Se não houver usuário, garantir que loading seja false
+      console.log('❌ Nenhum usuário autenticado, definindo loading como false');
+      setLoading(false);
     }
   }, [user]);
 
