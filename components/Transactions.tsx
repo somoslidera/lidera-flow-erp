@@ -44,27 +44,27 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [isInstallment, setIsInstallment] = useState(false);
   const [installmentsCount, setInstallmentsCount] = useState(2);
 
-  // Initial Form State
-  const initialFormState = {
+  // Function to get initial form state - with safety checks
+  const getInitialFormState = () => ({
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: new Date().toISOString().split('T')[0],
     type: 'Saída' as TransactionType,
     category: '',
     categoryId: '',
     subcategoryId: '',
-    entity: '',
+    entity: '', // Entity is optional - can be empty
     productService: '',
-    costCenter: settings.costCenters[0] || '',
-    paymentMethod: settings.paymentMethods[0] || '',
-    accountId: accounts[0]?.id || '',
+    costCenter: (settings?.costCenters && settings.costCenters.length > 0) ? settings.costCenters[0] : '',
+    paymentMethod: (settings?.paymentMethods && settings.paymentMethods.length > 0) ? settings.paymentMethods[0] : '',
+    accountId: accounts && accounts.length > 0 ? (accounts[0]?.id || '') : '',
     description: '',
     expectedAmount: 0,
     actualAmount: 0,
     accrualDate: new Date().toISOString().split('T')[0],
     status: 'A pagar' as TransactionStatus
-  };
+  });
 
-  const [formData, setFormData] = useState(initialFormState);
+  const [formData, setFormData] = useState(getInitialFormState());
 
   // Entity creation modal state
   const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
@@ -156,7 +156,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
-    setFormData(initialFormState);
+    setFormData(getInitialFormState());
     setIsInstallment(false);
     setInstallmentsCount(2);
   };
@@ -170,7 +170,7 @@ const Transactions: React.FC<TransactionsProps> = ({
       category: t.category || '',
       categoryId: t.categoryId || '',
       subcategoryId: t.subcategoryId || '',
-      entity: t.entity,
+      entity: t.entity || '', // Entity can be empty/null
       productService: t.productService,
       costCenter: t.costCenter,
       paymentMethod: t.paymentMethod,
@@ -206,10 +206,10 @@ const Transactions: React.FC<TransactionsProps> = ({
         : '';
       
       return (
-        t.description.toLowerCase().includes(filterLower) ||
-        t.entity.toLowerCase().includes(filterLower) ||
-        categoryName.toLowerCase().includes(filterLower) ||
-        subcategoryName.toLowerCase().includes(filterLower)
+        t.description?.toLowerCase().includes(filterLower) ||
+        (t.entity && t.entity.toLowerCase().includes(filterLower)) ||
+        categoryName?.toLowerCase().includes(filterLower) ||
+        subcategoryName?.toLowerCase().includes(filterLower)
       );
     });
 
@@ -296,15 +296,31 @@ const Transactions: React.FC<TransactionsProps> = ({
   };
 
   // Use entities from Firebase, fallback to settings.entities for backward compatibility
-  const availableEntitiesList = entities.length > 0 
-    ? entities.filter(e => {
-        if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
-        return e.type === 'Fornecedor' || e.type === 'Ambos';
-      })
-    : settings.entities.filter((e: any) => {
-        if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
-        return e.type === 'Fornecedor' || e.type === 'Ambos';
-      });
+  // Add safety checks to prevent errors when entities are undefined or missing type
+  const availableEntitiesList = useMemo(() => {
+    try {
+      if (entities && entities.length > 0) {
+        return entities.filter(e => {
+          if (!e || !e.type) return false; // Skip entities without type
+          if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
+          return e.type === 'Fornecedor' || e.type === 'Ambos';
+        });
+      }
+      
+      if (settings?.entities && Array.isArray(settings.entities) && settings.entities.length > 0) {
+        return settings.entities.filter((e: any) => {
+          if (!e || !e.type) return false; // Skip entities without type
+          if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
+          return e.type === 'Fornecedor' || e.type === 'Ambos';
+        });
+      }
+      
+      return []; // Return empty array if no entities available
+    } catch (error) {
+      console.error("Error filtering entities:", error);
+      return []; // Return empty array on error
+    }
+  }, [entities, settings?.entities, formData.type]);
 
   return (
     <div className="space-y-6">
@@ -347,7 +363,16 @@ const Transactions: React.FC<TransactionsProps> = ({
             darkMode={darkMode}
           />
           <button 
-            onClick={() => { setEditingId(null); setFormData(initialFormState); setIsModalOpen(true); }}
+            onClick={() => { 
+              try {
+                setEditingId(null); 
+                setFormData(getInitialFormState()); 
+                setIsModalOpen(true); 
+              } catch (error) {
+                console.error("Error opening transaction modal:", error);
+                alert("Erro ao abrir formulário. Verifique se todas as configurações estão carregadas.");
+              }
+            }}
             className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
             <Plus size={18} />
@@ -418,9 +443,14 @@ const Transactions: React.FC<TransactionsProps> = ({
           }}
           onDelete={onDelete}
           onAdd={() => {
-            setEditingId(null);
-            setFormData(initialFormState);
-            setIsModalOpen(true);
+            try {
+              setEditingId(null);
+              setFormData(getInitialFormState());
+              setIsModalOpen(true);
+            } catch (error) {
+              console.error("Error opening transaction modal:", error);
+              alert("Erro ao abrir formulário. Verifique se todas as configurações estão carregadas.");
+            }
           }}
           getId={(item) => item.id}
           darkMode={darkMode}
