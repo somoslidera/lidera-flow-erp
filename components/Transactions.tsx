@@ -45,7 +45,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [installmentsCount, setInstallmentsCount] = useState(2);
 
   // Function to get initial form state - with safety checks
-  const getInitialFormState = () => ({
+  const getInitialFormState = useMemo(() => ({
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: new Date().toISOString().split('T')[0],
     type: 'Saída' as TransactionType,
@@ -62,9 +62,9 @@ const Transactions: React.FC<TransactionsProps> = ({
     actualAmount: 0,
     accrualDate: new Date().toISOString().split('T')[0],
     status: 'A pagar' as TransactionStatus
-  });
+  }), [settings, accounts]);
 
-  const [formData, setFormData] = useState(getInitialFormState());
+  const [formData, setFormData] = useState(getInitialFormState);
 
   // Entity creation modal state
   const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
@@ -156,7 +156,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
-    setFormData(getInitialFormState());
+    setFormData(getInitialFormState);
     setIsInstallment(false);
     setInstallmentsCount(2);
   };
@@ -183,6 +183,19 @@ const Transactions: React.FC<TransactionsProps> = ({
     });
     setIsInstallment(false); // Can't convert existing to installment easily in edit mode
     setIsModalOpen(true);
+  };
+
+  // Helper functions - defined before useMemo that uses them
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId || !settings?.categories) return '';
+    const category = settings.categories.find(c => c.id === categoryId);
+    return category?.name || '';
+  };
+
+  const getSubcategoryName = (subcategoryId?: string) => {
+    if (!subcategoryId || !subcategories) return '';
+    const subcategory = subcategories.find(s => s.id === subcategoryId);
+    return subcategory?.name || '';
   };
 
   // --- Sorting & Filtering ---
@@ -226,7 +239,7 @@ const Transactions: React.FC<TransactionsProps> = ({
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [transactions, filter, sortField, sortDirection]);
+  }, [transactions, filter, sortField, sortDirection, settings, subcategories]);
 
   // --- Pagination Logic ---
   const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
@@ -281,19 +294,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     return subcategories.filter(s => s.categoryId === formData.categoryId);
   }, [formData.categoryId, subcategories]);
 
-  // Helper to get category name from ID
-  const getCategoryName = (categoryId?: string) => {
-    if (!categoryId) return '';
-    const category = settings.categories.find(c => c.id === categoryId);
-    return category?.name || '';
-  };
-
-  // Helper to get subcategory name from ID
-  const getSubcategoryName = (subcategoryId?: string) => {
-    if (!subcategoryId) return '';
-    const subcategory = subcategories.find(s => s.id === subcategoryId);
-    return subcategory?.name || '';
-  };
 
   // Use entities from Firebase, fallback to settings.entities for backward compatibility
   // Add safety checks to prevent errors when entities are undefined or missing type
@@ -366,7 +366,7 @@ const Transactions: React.FC<TransactionsProps> = ({
             onClick={() => { 
               try {
                 setEditingId(null); 
-                setFormData(getInitialFormState()); 
+                setFormData(getInitialFormState); 
                 setIsModalOpen(true); 
               } catch (error) {
                 console.error("Error opening transaction modal:", error);
@@ -445,7 +445,7 @@ const Transactions: React.FC<TransactionsProps> = ({
           onAdd={() => {
             try {
               setEditingId(null);
-              setFormData(getInitialFormState());
+              setFormData(getInitialFormState);
               setIsModalOpen(true);
             } catch (error) {
               console.error("Error opening transaction modal:", error);
