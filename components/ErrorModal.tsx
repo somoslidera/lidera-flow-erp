@@ -61,3 +61,4 @@ const ErrorModal: React.FC<ErrorModalProps> = ({ isOpen, error, onClose, darkMod
 
 export default ErrorModal;
 
+
