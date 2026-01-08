@@ -16,13 +16,14 @@ interface TransactionsProps {
   onUpdate: (id: string, t: Partial<Transaction>) => void;
   onBulkAdd: (transactions: Omit<Transaction, 'id'>[]) => void;
   onImportEntities?: (entities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>) => void;
+  onAddEntity?: (entity: Omit<Entity, 'id'>) => void | Promise<void>;
 }
 
 type SortField = 'dueDate' | 'description' | 'valor' | 'entity';
 type SortDirection = 'asc' | 'desc';
 
 const Transactions: React.FC<TransactionsProps> = ({ 
-  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities
+  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities, onAddEntity: _onAddEntity
 }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
