@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List, Filter, XCircle } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List } from 'lucide-react';
 import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity, SubcategoryItem } from '../types';
 import CsvImporter from './CsvImporter';
 import EditableTable from './EditableTable';
-import { authService } from '../services/firebase';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -17,31 +16,18 @@ interface TransactionsProps {
   onUpdate: (id: string, t: Partial<Transaction>) => void;
   onBulkAdd: (transactions: Omit<Transaction, 'id'>[]) => void;
   onImportEntities?: (entities: Array<{ name: string; type: 'Cliente' | 'Fornecedor' | 'Ambos'; tags?: string[] }>) => void;
-  onAddEntity?: (entity: Omit<Entity, 'id'>) => void;
 }
 
 type SortField = 'dueDate' | 'description' | 'valor' | 'entity';
 type SortDirection = 'asc' | 'desc';
 
 const Transactions: React.FC<TransactionsProps> = ({ 
-  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities, onAddEntity
+  transactions, accounts, entities, subcategories, settings, darkMode, onAdd, onDelete, onUpdate, onBulkAdd, onImportEntities
 }) => {
   const [filter, setFilter] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'editable'>('table');
-  
-  // Advanced Filters State
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [filterType, setFilterType] = useState<'all' | 'Entrada' | 'Saída'>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [filterEntity, setFilterEntity] = useState<string>('all');
-  const [filterAccount, setFilterAccount] = useState<string>('all');
-  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
-  const [filterDateTo, setFilterDateTo] = useState<string>('');
-  const [filterAmountMin, setFilterAmountMin] = useState<string>('');
-  const [filterAmountMax, setFilterAmountMax] = useState<string>('');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,65 +42,27 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [isInstallment, setIsInstallment] = useState(false);
   const [installmentsCount, setInstallmentsCount] = useState(2);
 
-  // Function to get initial form state - with safety checks
-  const getInitialFormState = useMemo(() => ({
+  // Initial Form State
+  const initialFormState = {
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: new Date().toISOString().split('T')[0],
     type: 'Saída' as TransactionType,
     category: '',
     categoryId: '',
     subcategoryId: '',
-    entity: '', // Entity is optional - can be empty
+    entity: '',
     productService: '',
-    costCenter: (settings?.costCenters && settings.costCenters.length > 0) ? settings.costCenters[0] : '',
-    paymentMethod: (settings?.paymentMethods && settings.paymentMethods.length > 0) ? settings.paymentMethods[0] : '',
-    accountId: accounts && accounts.length > 0 ? (accounts[0]?.id || '') : '',
+    costCenter: settings.costCenters[0] || '',
+    paymentMethod: settings.paymentMethods[0] || '',
+    accountId: accounts[0]?.id || '',
     description: '',
     expectedAmount: 0,
     actualAmount: 0,
     accrualDate: new Date().toISOString().split('T')[0],
     status: 'A pagar' as TransactionStatus
-  }), [settings, accounts]);
-
-  const [formData, setFormData] = useState(getInitialFormState);
-
-  // Entity creation modal state
-  const [isEntityModalOpen, setIsEntityModalOpen] = useState(false);
-  const [newEntityName, setNewEntityName] = useState('');
-  const [newEntityType, setNewEntityType] = useState<'Cliente' | 'Fornecedor' | 'Ambos'>('Cliente');
-
-  // Handler to create new entity
-  const handleCreateEntity = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEntityName.trim() || !onAddEntity) return;
-
-    try {
-      const currentUser = authService?.getCurrentUser?.();
-      const userId = currentUser?.uid || 'system';
-      const now = new Date().toISOString();
-
-      const newEntity: Omit<Entity, 'id'> = {
-        name: newEntityName.trim(),
-        type: newEntityType,
-        createdAt: now,
-        updatedAt: now,
-        createdBy: userId,
-        isActive: true
-      };
-
-      await onAddEntity(newEntity);
-      
-      // Update form to select the new entity immediately
-      setFormData({ ...formData, entity: newEntityName.trim() });
-      
-      // Close modal and reset form
-      setIsEntityModalOpen(false);
-      setNewEntityName('');
-    } catch (error: any) {
-      console.error("Error creating entity:", error);
-      alert("Erro ao criar entidade. Tente novamente.");
-    }
   };
+
+  const [formData, setFormData] = useState(initialFormState);
 
   // --- Handlers ---
 
@@ -168,7 +116,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const closeModal = () => {
     setIsModalOpen(false);
     setEditingId(null);
-    setFormData(getInitialFormState);
+    setFormData(initialFormState);
     setIsInstallment(false);
     setInstallmentsCount(2);
   };
@@ -182,7 +130,7 @@ const Transactions: React.FC<TransactionsProps> = ({
       category: t.category || '',
       categoryId: t.categoryId || '',
       subcategoryId: t.subcategoryId || '',
-      entity: t.entity || '', // Entity can be empty/null
+      entity: t.entity,
       productService: t.productService,
       costCenter: t.costCenter,
       paymentMethod: t.paymentMethod,
@@ -197,19 +145,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     setIsModalOpen(true);
   };
 
-  // Helper functions - defined before useMemo that uses them
-  const getCategoryName = (categoryId?: string) => {
-    if (!categoryId || !settings?.categories) return '';
-    const category = settings.categories.find(c => c.id === categoryId);
-    return category?.name || '';
-  };
-
-  const getSubcategoryName = (subcategoryId?: string) => {
-    if (!subcategoryId || !subcategories) return '';
-    const subcategory = subcategories.find(s => s.id === subcategoryId);
-    return subcategory?.name || '';
-  };
-
   // --- Sorting & Filtering ---
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -220,47 +155,58 @@ const Transactions: React.FC<TransactionsProps> = ({
     }
   };
 
+  // Helper to get category name from ID
+  const getCategoryName = (categoryId?: string) => {
+    if (!categoryId) return '';
+    const category = settings.categories.find(c => c.id === categoryId);
+    return category?.name || '';
+  };
+
+  // Helper to get subcategory name from ID
+  const getSubcategoryName = (subcategoryId?: string) => {
+    if (!subcategoryId) return '';
+    const subcategory = subcategories.find(s => s.id === subcategoryId);
+    return subcategory?.name || '';
+  };
+
   const filteredAndSortedData = useMemo(() => {
-    const filterLower = filter.toLowerCase();
+    if (!filter.trim()) {
+      // Se não há filtro, apenas ordena os dados
+      return [...transactions].sort((a, b) => {
+        let valA: any = a[sortField as keyof Transaction];
+        let valB: any = b[sortField as keyof Transaction];
+
+        if (sortField === 'valor') {
+          valA = a.status === 'Pago' || a.status === 'Recebido' ? a.actualAmount : a.expectedAmount;
+          valB = b.status === 'Pago' || b.status === 'Recebido' ? b.actualAmount : b.expectedAmount;
+        }
+
+        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    const filterLower = filter.toLowerCase().trim();
     const filtered = transactions.filter(t => {
-      // Text search filter
       const categoryName = t.categoryId 
         ? getCategoryName(t.categoryId) 
-        : t.category || '';
+        : (t.category || '');
       const subcategoryName = t.subcategoryId 
         ? getSubcategoryName(t.subcategoryId) 
         : '';
       
-      const matchesText = filter === '' || (
-        t.description?.toLowerCase().includes(filterLower) ||
-        (t.entity && t.entity.toLowerCase().includes(filterLower)) ||
-        categoryName?.toLowerCase().includes(filterLower) ||
-        subcategoryName?.toLowerCase().includes(filterLower)
+      const description = (t.description || '').toLowerCase();
+      const entity = (t.entity || '').toLowerCase();
+      const category = (categoryName || '').toLowerCase();
+      const subcategory = (subcategoryName || '').toLowerCase();
+      
+      return (
+        description.includes(filterLower) ||
+        entity.includes(filterLower) ||
+        category.includes(filterLower) ||
+        subcategory.includes(filterLower)
       );
-      
-      // Advanced filters
-      const matchesType = filterType === 'all' || t.type === filterType;
-      const matchesStatus = filterStatus === 'all' || t.status === filterStatus;
-      const matchesCategory = filterCategory === 'all' || 
-        (t.categoryId === filterCategory) || 
-        (t.categoryId && getCategoryName(t.categoryId) === filterCategory) ||
-        (t.category === filterCategory);
-      const matchesEntity = filterEntity === 'all' || 
-        (t.entity && t.entity.toLowerCase() === filterEntity.toLowerCase());
-      const matchesAccount = filterAccount === 'all' || t.accountId === filterAccount;
-      
-      // Date filters
-      const matchesDateFrom = !filterDateFrom || t.dueDate >= filterDateFrom;
-      const matchesDateTo = !filterDateTo || t.dueDate <= filterDateTo;
-      
-      // Amount filters
-      const transactionAmount = t.status === 'Pago' || t.status === 'Recebido' ? t.actualAmount : t.expectedAmount;
-      const matchesAmountMin = !filterAmountMin || transactionAmount >= parseFloat(filterAmountMin);
-      const matchesAmountMax = !filterAmountMax || transactionAmount <= parseFloat(filterAmountMax);
-      
-      return matchesText && matchesType && matchesStatus && matchesCategory && 
-             matchesEntity && matchesAccount && matchesDateFrom && matchesDateTo &&
-             matchesAmountMin && matchesAmountMax;
     });
 
     return filtered.sort((a, b) => {
@@ -276,7 +222,7 @@ const Transactions: React.FC<TransactionsProps> = ({
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [transactions, filter, sortField, sortDirection, settings, subcategories]);
+  }, [transactions, filter, sortField, sortDirection, settings.categories, subcategories]);
 
   // --- Pagination Logic ---
   const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
@@ -331,33 +277,16 @@ const Transactions: React.FC<TransactionsProps> = ({
     return subcategories.filter(s => s.categoryId === formData.categoryId);
   }, [formData.categoryId, subcategories]);
 
-
   // Use entities from Firebase, fallback to settings.entities for backward compatibility
-  // Add safety checks to prevent errors when entities are undefined or missing type
-  const availableEntitiesList = useMemo(() => {
-    try {
-      if (entities && entities.length > 0) {
-        return entities.filter(e => {
-          if (!e || !e.type) return false; // Skip entities without type
-          if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
-          return e.type === 'Fornecedor' || e.type === 'Ambos';
-        });
-      }
-      
-      if (settings?.entities && Array.isArray(settings.entities) && settings.entities.length > 0) {
-        return settings.entities.filter((e: any) => {
-          if (!e || !e.type) return false; // Skip entities without type
-          if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
-          return e.type === 'Fornecedor' || e.type === 'Ambos';
-        });
-      }
-      
-      return []; // Return empty array if no entities available
-    } catch (error) {
-      console.error("Error filtering entities:", error);
-      return []; // Return empty array on error
-    }
-  }, [entities, settings?.entities, formData.type]);
+  const availableEntitiesList = entities.length > 0 
+    ? entities.filter(e => {
+        if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
+        return e.type === 'Fornecedor' || e.type === 'Ambos';
+      })
+    : settings.entities.filter((e: any) => {
+        if (formData.type === 'Entrada') return e.type === 'Cliente' || e.type === 'Ambos';
+        return e.type === 'Fornecedor' || e.type === 'Ambos';
+      });
 
   return (
     <div className="space-y-6">
@@ -400,16 +329,7 @@ const Transactions: React.FC<TransactionsProps> = ({
             darkMode={darkMode}
           />
           <button 
-            onClick={() => { 
-              try {
-                setEditingId(null); 
-                setFormData(getInitialFormState); 
-                setIsModalOpen(true); 
-              } catch (error) {
-                console.error("Error opening transaction modal:", error);
-                alert("Erro ao abrir formulário. Verifique se todas as configurações estão carregadas.");
-              }
-            }}
+            onClick={() => { setEditingId(null); setFormData(initialFormState); setIsModalOpen(true); }}
             className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
           >
             <Plus size={18} />
@@ -419,181 +339,30 @@ const Transactions: React.FC<TransactionsProps> = ({
       </div>
 
       {/* Filters & Controls */}
-      <div className="space-y-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 justify-between">
-          <div className="relative flex-1 max-w-md">
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
-            <input 
-              type="text"
-              placeholder="Buscar por descrição, categoria, entidade..."
-              value={filter}
-              onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }}
-              className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`p-2 px-4 rounded-lg flex items-center gap-2 font-medium transition-colors ${
-                showAdvancedFilters
-                  ? darkMode ? 'bg-yellow-500 text-zinc-900' : 'bg-blue-600 text-white'
-                  : darkMode ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              <Filter size={18} />
-              <span>Filtros Avançados</span>
-            </button>
-            {viewMode === 'table' && (
-              <div className="flex items-center gap-2">
-                <span className={`text-sm ${subText}`}>Itens por página:</span>
-                <select 
-                  value={itemsPerPage} 
-                  onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                  className={`p-2 rounded-lg border outline-none ${inputBg}`}
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-            )}
-          </div>
+      <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
+        <div className="relative flex-1 max-w-md">
+          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
+          <input 
+            type="text"
+            placeholder="Buscar por descrição, categoria, entidade..."
+            value={filter}
+            onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }} // Reset page on filter
+            className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
+          />
         </div>
-
-        {/* Advanced Filters Panel */}
-        {showAdvancedFilters && (
-          <div className={`p-4 rounded-xl border ${cardBg} space-y-4`}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={`text-sm font-semibold ${textColor}`}>Filtros Avançados</h3>
-              <button
-                onClick={() => {
-                  setFilterType('all');
-                  setFilterStatus('all');
-                  setFilterCategory('all');
-                  setFilterEntity('all');
-                  setFilterAccount('all');
-                  setFilterDateFrom('');
-                  setFilterDateTo('');
-                  setFilterAmountMin('');
-                  setFilterAmountMax('');
-                  setCurrentPage(1);
-                }}
-                className={`text-xs px-2 py-1 rounded flex items-center gap-1 ${subText} hover:underline`}
-              >
-                <XCircle size={14} />
-                Limpar Filtros
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Tipo</label>
-                <select 
-                  value={filterType} 
-                  onChange={(e) => { setFilterType(e.target.value as any); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                >
-                  <option value="all">Todos</option>
-                  <option value="Entrada">Entrada</option>
-                  <option value="Saída">Saída</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Status</label>
-                <select 
-                  value={filterStatus} 
-                  onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                >
-                  <option value="all">Todos</option>
-                  <option value="A pagar">A pagar</option>
-                  <option value="Pago">Pago</option>
-                  <option value="A receber">A receber</option>
-                  <option value="Recebido">Recebido</option>
-                  <option value="Atrasado">Atrasado</option>
-                  <option value="Cancelado">Cancelado</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Categoria</label>
-                <select 
-                  value={filterCategory} 
-                  onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                >
-                  <option value="all">Todas</option>
-                  {settings.categories.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Entidade</label>
-                <select 
-                  value={filterEntity} 
-                  onChange={(e) => { setFilterEntity(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                >
-                  <option value="all">Todas</option>
-                  {entities.map(e => (
-                    <option key={e.id} value={e.name}>{e.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Conta</label>
-                <select 
-                  value={filterAccount} 
-                  onChange={(e) => { setFilterAccount(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                >
-                  <option value="all">Todas</option>
-                  {accounts.map(a => (
-                    <option key={a.id} value={a.id}>{a.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Data Inicial</label>
-                <input 
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={(e) => { setFilterDateFrom(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Data Final</label>
-                <input 
-                  type="date"
-                  value={filterDateTo}
-                  onChange={(e) => { setFilterDateTo(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Valor Mínimo</label>
-                <input 
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={filterAmountMin}
-                  onChange={(e) => { setFilterAmountMin(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className={`text-xs font-medium ${subText}`}>Valor Máximo</label>
-                <input 
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={filterAmountMax}
-                  onChange={(e) => { setFilterAmountMax(e.target.value); setCurrentPage(1); }}
-                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
-                />
-              </div>
-            </div>
+        {viewMode === 'table' && (
+          <div className="flex items-center gap-2">
+             <span className={`text-sm ${subText}`}>Itens por página:</span>
+             <select 
+                value={itemsPerPage} 
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className={`p-2 rounded-lg border outline-none ${inputBg}`}
+             >
+               <option value={10}>10</option>
+               <option value={25}>25</option>
+               <option value={50}>50</option>
+               <option value={100}>100</option>
+             </select>
           </div>
         )}
       </div>
@@ -631,14 +400,9 @@ const Transactions: React.FC<TransactionsProps> = ({
           }}
           onDelete={onDelete}
           onAdd={() => {
-            try {
-              setEditingId(null);
-              setFormData(getInitialFormState);
-              setIsModalOpen(true);
-            } catch (error) {
-              console.error("Error opening transaction modal:", error);
-              alert("Erro ao abrir formulário. Verifique se todas as configurações estão carregadas.");
-            }
+            setEditingId(null);
+            setFormData(initialFormState);
+            setIsModalOpen(true);
           }}
           getId={(item) => item.id}
           darkMode={darkMode}
@@ -816,33 +580,13 @@ const Transactions: React.FC<TransactionsProps> = ({
 
                 <div className="space-y-1">
                   <label className={`text-xs font-medium ${subText}`}>Entidade</label>
-                  <div className="flex gap-2">
-                    <select className={`flex-1 p-2 rounded border ${inputBg}`} value={formData.entity} onChange={e => setFormData({...formData, entity: e.target.value})}>
-                       <option value="">Selecione...</option>
-                       {availableEntitiesList.map((e: any) => <option key={e.id || e.name} value={e.name}>{e.name}</option>)}
-                       {!availableEntitiesList.find((e: any) => e.name === formData.entity) && formData.entity && (
-                          <option value={formData.entity}>{formData.entity}</option>
-                       )}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // Set default type based on transaction type
-                        const defaultType = formData.type === 'Entrada' ? 'Cliente' : 'Fornecedor';
-                        setNewEntityType(defaultType);
-                        setNewEntityName('');
-                        setIsEntityModalOpen(true);
-                      }}
-                      className={`px-3 py-2 rounded border flex items-center gap-1 font-medium transition-colors ${
-                        darkMode 
-                          ? 'bg-zinc-800 border-zinc-700 text-yellow-400 hover:bg-zinc-700' 
-                          : 'bg-blue-50 border-blue-300 text-blue-600 hover:bg-blue-100'
-                      }`}
-                      title="Adicionar nova entidade"
-                    >
-                      <Plus size={16} />
-                    </button>
-                  </div>
+                  <select className={`w-full p-2 rounded border ${inputBg}`} value={formData.entity} onChange={e => setFormData({...formData, entity: e.target.value})}>
+                     <option value="">Selecione...</option>
+                     {availableEntitiesList.map((e: any) => <option key={e.id || e.name} value={e.name}>{e.name}</option>)}
+                     {!availableEntitiesList.find((e: any) => e.name === formData.entity) && formData.entity && (
+                        <option value={formData.entity}>{formData.entity}</option>
+                     )}
+                  </select>
                 </div>
 
                 <div className="space-y-1">
@@ -930,79 +674,6 @@ const Transactions: React.FC<TransactionsProps> = ({
               <div className={`p-6 border-t flex justify-end gap-3 ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
                 <button type="button" onClick={closeModal} className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-slate-100 text-slate-600'}`}>Cancelar</button>
                 <button type="submit" className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>Salvar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Entity Creation Modal */}
-      {isEntityModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className={`w-full max-w-md rounded-xl shadow-2xl ${cardBg}`}>
-            <form onSubmit={handleCreateEntity}>
-              <div className={`p-6 border-b flex justify-between items-center ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
-                <h3 className={`text-xl font-bold ${textColor}`}>Nova Entidade</h3>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setIsEntityModalOpen(false);
-                    setNewEntityName('');
-                  }} 
-                  className={subText}
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                <div className="space-y-1">
-                  <label className={`text-xs font-medium ${subText}`}>Nome da Entidade *</label>
-                  <input 
-                    required
-                    className={`w-full p-2 rounded border ${inputBg}`} 
-                    value={newEntityName} 
-                    onChange={e => setNewEntityName(e.target.value)}
-                    placeholder="Ex: Empresa XYZ"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className={`text-xs font-medium ${subText}`}>Tipo *</label>
-                  <select 
-                    className={`w-full p-2 rounded border ${inputBg}`} 
-                    value={newEntityType} 
-                    onChange={e => setNewEntityType(e.target.value as 'Cliente' | 'Fornecedor' | 'Ambos')}
-                  >
-                    <option value="Cliente">Cliente</option>
-                    <option value="Fornecedor">Fornecedor</option>
-                    <option value="Ambos">Ambos</option>
-                  </select>
-                </div>
-
-                <p className={`text-xs ${subText}`}>
-                  💡 A entidade será criada e automaticamente selecionada no formulário de lançamento.
-                </p>
-              </div>
-
-              <div className={`p-6 border-t flex justify-end gap-3 ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
-                <button 
-                  type="button"
-                  onClick={() => {
-                    setIsEntityModalOpen(false);
-                    setNewEntityName('');
-                  }}
-                  className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-zinc-800 text-zinc-200 hover:bg-zinc-700' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'}`}
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  className={`px-4 py-2 rounded-lg font-medium ${darkMode ? 'bg-yellow-500 text-zinc-900 hover:bg-yellow-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                >
-                  Criar Entidade
-                </button>
               </div>
             </form>
           </div>
