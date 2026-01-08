@@ -38,6 +38,7 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [filterSubcategory, setFilterSubcategory] = useState<string>('all');
   const [filterEntity, setFilterEntity] = useState<string>('all');
   const [filterAccount, setFilterAccount] = useState<string>('all');
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [filterMinValue, setFilterMinValue] = useState<string>('');
@@ -250,6 +251,11 @@ const Transactions: React.FC<TransactionsProps> = ({
       filtered = filtered.filter(t => t.accountId === filterAccount);
     }
 
+    // Filtro por forma de pagamento
+    if (filterPaymentMethod !== 'all') {
+      filtered = filtered.filter(t => t.paymentMethod === filterPaymentMethod);
+    }
+
     // Filtro por data (vencimento)
     if (filterDateFrom) {
       filtered = filtered.filter(t => t.dueDate >= filterDateFrom);
@@ -291,6 +297,7 @@ const Transactions: React.FC<TransactionsProps> = ({
     filterSubcategory, 
     filterEntity, 
     filterAccount, 
+    filterPaymentMethod,
     filterDateFrom, 
     filterDateTo, 
     filterMinValue, 
@@ -559,6 +566,21 @@ const Transactions: React.FC<TransactionsProps> = ({
                 </select>
               </div>
 
+              {/* Forma de Pagamento */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Forma de Pagamento</label>
+                <select 
+                  value={filterPaymentMethod} 
+                  onChange={(e) => { setFilterPaymentMethod(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {settings.paymentMethods.map(method => (
+                    <option key={method} value={method}>{method}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Data Vencimento - De */}
               <div className="space-y-1">
                 <label className={`text-xs font-medium ${subText}`}>Vencimento - De</label>
@@ -619,6 +641,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                   setFilterSubcategory('all');
                   setFilterEntity('all');
                   setFilterAccount('all');
+                  setFilterPaymentMethod('all');
                   setFilterDateFrom('');
                   setFilterDateTo('');
                   setFilterMinValue('');
@@ -651,6 +674,13 @@ const Transactions: React.FC<TransactionsProps> = ({
             },
             { key: 'category', label: 'Categoria', type: 'text', width: '150px' },
             { key: 'entity', label: 'Entidade', type: 'text', width: '150px' },
+            { 
+              key: 'paymentMethod', 
+              label: 'Forma de Pagamento', 
+              type: 'select', 
+              options: settings.paymentMethods,
+              width: '150px'
+            },
             { key: 'expectedAmount', label: 'Valor Previsto', type: 'currency', width: '130px' },
             { key: 'actualAmount', label: 'Valor Realizado', type: 'currency', width: '130px' },
             {
@@ -692,6 +722,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                     <div className="flex items-center gap-1">Entidade <SortIcon field="entity" /></div>
                 </th>
                 <th className="px-6 py-4">Conta</th>
+                <th className="px-6 py-4">Forma de Pagamento</th>
                 <th className="px-6 py-4 text-right cursor-pointer hover:text-blue-500" onClick={() => handleSort('valor')}>
                      <div className="flex items-center justify-end gap-1">Valor <SortIcon field="valor" /></div>
                 </th>
@@ -721,6 +752,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                   </td>
                   <td className={`px-6 py-4 ${subText}`}>{t.entity}</td>
                   <td className={`px-6 py-4 ${subText} text-xs`}>{accountName}</td>
+                  <td className={`px-6 py-4 ${subText} text-xs`}>{t.paymentMethod || '-'}</td>
                   <td className={`px-6 py-4 text-right font-medium ${t.type === 'Entrada' ? 'text-emerald-500' : 'text-red-500'}`}>
                     {t.type === 'Saída' ? '-' : '+'} {formatCurrency(isPaid ? t.actualAmount : t.expectedAmount)}
                   </td>

@@ -49,36 +49,54 @@ const App: React.FC = () => {
 
   // Auth State Listener
   useEffect(() => {
+    let isMounted = true;
     try {
       const unsubscribe = authService.onAuthStateChanged(async (user) => {
-        setUser(user);
-        setAuthLoading(false);
-        // Salvar foto de perfil automaticamente quando usuário faz login
-        if (user) {
-          try {
-            await userService.saveOrUpdateUser(user);
-          } catch (error: any) {
-            console.error("Error saving user profile:", error);
-            // Não interromper o fluxo se houver erro ao salvar perfil
+        if (!isMounted) return;
+        try {
+          setUser(user);
+          setAuthLoading(false);
+          // Salvar foto de perfil automaticamente quando usuário faz login
+          if (user) {
+            try {
+              await userService.saveOrUpdateUser(user);
+            } catch (error: any) {
+              console.error("Error saving user profile:", error);
+              // Não interromper o fluxo se houver erro ao salvar perfil
+            }
+          }
+        } catch (error: any) {
+          console.error("Error in auth state change handler:", error);
+          if (isMounted) {
+            setAuthLoading(false);
           }
         }
       });
-      return () => unsubscribe();
+      return () => {
+        isMounted = false;
+        unsubscribe();
+      };
     } catch (error: any) {
       console.error("Auth state listener error:", error);
-      setAuthLoading(false);
+      if (isMounted) {
+        setAuthLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchAllData = async () => {
+      if (!isMounted) return;
       console.log('🔄 Iniciando carregamento de dados...');
       setLoading(true); // Garantir que loading está true ao iniciar
       
       // Timeout de segurança para garantir que loading sempre seja false
       const safetyTimeout = setTimeout(() => {
-        console.warn('⚠️ Timeout de segurança: forçando loading como false após 35 segundos');
-        setLoading(false);
+        if (isMounted) {
+          console.warn('⚠️ Timeout de segurança: forçando loading como false após 35 segundos');
+          setLoading(false);
+        }
       }, 35000);
       
       try {
@@ -210,15 +228,19 @@ const App: React.FC = () => {
           errorMessage = error.message;
         }
         
-        setError(errorMessage);
-        // Fallback to mock data on error
-        setTransactions(MOCK_TRANSACTIONS);
-        setSettings(MOCK_SETTINGS);
-        setAccounts(MOCK_ACCOUNTS);
+        if (isMounted) {
+          setError(errorMessage);
+          // Fallback to mock data on error
+          setTransactions(MOCK_TRANSACTIONS);
+          setSettings(MOCK_SETTINGS);
+          setAccounts(MOCK_ACCOUNTS);
+        }
       } finally {
         clearTimeout(safetyTimeout); // Garantir que o timeout de segurança seja limpo
-        console.log('✅ Carregamento finalizado, definindo loading como false');
-        setLoading(false);
+        if (isMounted) {
+          console.log('✅ Carregamento finalizado, definindo loading como false');
+          setLoading(false);
+        }
       }
     };
 
@@ -228,9 +250,50 @@ const App: React.FC = () => {
     } else {
       // Se não houver usuário, garantir que loading seja false
       console.log('❌ Nenhum usuário autenticado, definindo loading como false');
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
+
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ESC para fechar modais/popups
+      if (e.key === 'Escape') {
+        // Fechar qualquer modal aberto (será implementado nos componentes específicos)
+        const modals = document.querySelectorAll('[role="dialog"]');
+        if (modals.length > 0) {
+          const lastModal = modals[modals.length - 1] as HTMLElement;
+          const closeButton = lastModal.querySelector('button[aria-label="Close"], button:has(svg)');
+          if (closeButton) {
+            (closeButton as HTMLButtonElement).click();
+          }
+        }
+      }
+
+      // Backspace para voltar (apenas se não estiver em campo de texto)
+      if (e.key === 'Backspace' && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || (e.target as HTMLElement)?.isContentEditable)) {
+        if (window.history.length > 1 && window.location.pathname !== '/') {
+          e.preventDefault();
+          window.history.back();
+        }
+      }
+
+      // F5 para refresh (padrão do navegador, mas podemos prevenir e fazer nosso próprio refresh)
+      if (e.key === 'F5') {
+        e.preventDefault();
+        window.location.reload();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Migration helper: Convert category (string) to categoryId
   // Note: Uncomment and call manually if migration is needed

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ArrowRightLeft, 
@@ -13,7 +13,9 @@ import {
   HelpCircle,
   LogOut,
   Users,
-  DollarSign
+  DollarSign,
+  RefreshCw,
+  ArrowLeft
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -26,8 +28,20 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, onSignOut }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const handleGoBack = () => {
+    navigate(-1);
+  };
+
+  const canGoBack = location.pathname !== '/' && location.pathname !== '/dashboard';
 
   const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -161,8 +175,24 @@ const Layout: React.FC<LayoutProps> = ({ children, darkMode, toggleTheme, user, 
           </div>
         )}
 
-        {/* Top Bar (Theme Toggle) */}
-        <div className={`h-16 px-8 flex items-center justify-end border-b gap-4 ${sidebarBg} transition-colors duration-300`}>
+        {/* Top Bar (Theme Toggle, Refresh, Back) */}
+        <div className={`h-16 px-8 flex items-center justify-end border-b gap-2 ${sidebarBg} transition-colors duration-300`}>
+          {canGoBack && (
+            <button 
+              onClick={handleGoBack}
+              className={`p-2 rounded-lg transition-all duration-300 ${darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+              title="Voltar (Backspace)"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <button 
+            onClick={handleRefresh}
+            className={`p-2 rounded-lg transition-all duration-300 ${darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
+            title="Atualizar página (F5)"
+          >
+            <RefreshCw size={20} />
+          </button>
           <button 
             onClick={toggleTheme}
             className={`p-2 rounded-full transition-all duration-300 ${darkMode ? 'bg-zinc-800 hover:bg-zinc-700 text-yellow-400' : 'bg-slate-100 hover:bg-slate-200 text-blue-600'}`}
