@@ -37,6 +37,7 @@ export const ACCOUNTS_COLLECTION = "accounts";
 export const ENTITIES_COLLECTION = "entities";
 export const SUBCATEGORIES_COLLECTION = "subcategories";
 export const BUDGETS_COLLECTION = "budgets";
+const USERS_COLLECTION = "users";
 const SETTINGS_DOC_ID = "main"; // Single document for settings
 
 // Helper function to handle Firebase errors
@@ -449,11 +450,53 @@ export const budgetService = {
   }
 };
 
+// Users Service
+export const userService = {
+  saveOrUpdateUser: async (user: User) => {
+    try {
+      const userDoc = {
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || '',
+        lastLogin: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Usar setDoc com merge para criar ou atualizar
+      await setDoc(doc(db, USERS_COLLECTION, user.uid), userDoc, { merge: true });
+      console.log('✅ Perfil do usuário salvo/atualizado no Firestore');
+    } catch (error: any) {
+      console.error("Error saving user profile:", error);
+      if (error?.code === 'permission-denied') {
+        console.error("❌ PERMISSÃO NEGADA: Verifique as regras de segurança do Firestore para a coleção 'users'");
+      }
+      // Não lançar erro para não interromper o fluxo de login
+    }
+  },
+  getUser: async (uid: string) => {
+    try {
+      const userDoc = await getDoc(doc(db, USERS_COLLECTION, uid));
+      if (userDoc.exists()) {
+        return userDoc.data();
+      }
+      return null;
+    } catch (error: any) {
+      console.error("Error fetching user:", error);
+      return null;
+    }
+  }
+};
+
 // Auth Service
 export const authService = {
   signInWithGoogle: async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      // Salvar foto de perfil automaticamente após login
+      if (result.user) {
+        await userService.saveOrUpdateUser(result.user);
+      }
       return result.user;
     } catch (error: any) {
       console.error("Error signing in with Google:", error);

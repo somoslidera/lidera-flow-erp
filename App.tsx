@@ -10,7 +10,7 @@ import Help from './components/Help';
 import Login from './components/Login';
 import { Transaction, AppSettings, Account, Entity, SubcategoryItem, Budget } from './types';
 import { MOCK_TRANSACTIONS, MOCK_SETTINGS, MOCK_ACCOUNTS } from './constants';
-import { transactionService, settingsService, accountsService, entityService, authService, subcategoryService, budgetService } from './services/firebase';
+import { transactionService, settingsService, accountsService, entityService, authService, subcategoryService, budgetService, userService } from './services/firebase';
 import Entities from './components/Entities';
 import CashFlowReport from './components/CashFlowReport';
 import BudgetComponent from './components/Budget';
@@ -50,9 +50,18 @@ const App: React.FC = () => {
   // Auth State Listener
   useEffect(() => {
     try {
-      const unsubscribe = authService.onAuthStateChanged((user) => {
+      const unsubscribe = authService.onAuthStateChanged(async (user) => {
         setUser(user);
         setAuthLoading(false);
+        // Salvar foto de perfil automaticamente quando usuário faz login
+        if (user) {
+          try {
+            await userService.saveOrUpdateUser(user);
+          } catch (error: any) {
+            console.error("Error saving user profile:", error);
+            // Não interromper o fluxo se houver erro ao salvar perfil
+          }
+        }
       });
       return () => unsubscribe();
     } catch (error: any) {

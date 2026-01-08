@@ -609,7 +609,7 @@ const Transactions: React.FC<TransactionsProps> = ({
             </div>
 
             {/* Botão Limpar Filtros */}
-            <div className="flex justify-end pt-2 border-t border-zinc-800 dark:border-slate-200">
+            <div className={`flex justify-end pt-2 border-t ${darkMode ? 'border-zinc-800' : 'border-slate-200'}`}>
               <button
                 onClick={() => {
                   setFilter('');
