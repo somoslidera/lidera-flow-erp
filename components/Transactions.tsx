@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List } from 'lucide-react';
+import { Plus, Search, Trash2, Edit2, X, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Table, List, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { Transaction, AppSettings, TransactionType, TransactionStatus, Account, Entity, SubcategoryItem } from '../types';
 import CsvImporter from './CsvImporter';
 import EditableTable from './EditableTable';
@@ -29,6 +29,19 @@ const Transactions: React.FC<TransactionsProps> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'editable'>('table');
+  
+  // Advanced Filters State
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filterType, setFilterType] = useState<TransactionType | 'all'>('all');
+  const [filterStatus, setFilterStatus] = useState<TransactionStatus | 'all'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [filterSubcategory, setFilterSubcategory] = useState<string>('all');
+  const [filterEntity, setFilterEntity] = useState<string>('all');
+  const [filterAccount, setFilterAccount] = useState<string>('all');
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('');
+  const [filterDateTo, setFilterDateTo] = useState<string>('');
+  const [filterMinValue, setFilterMinValue] = useState<string>('');
+  const [filterMaxValue, setFilterMaxValue] = useState<string>('');
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -171,45 +184,91 @@ const Transactions: React.FC<TransactionsProps> = ({
   };
 
   const filteredAndSortedData = useMemo(() => {
-    if (!filter.trim()) {
-      // Se não há filtro, apenas ordena os dados
-      return [...transactions].sort((a, b) => {
-        let valA: any = a[sortField as keyof Transaction];
-        let valB: any = b[sortField as keyof Transaction];
+    // Aplicar todos os filtros
+    let filtered = [...transactions];
 
-        if (sortField === 'valor') {
-          valA = a.status === 'Pago' || a.status === 'Recebido' ? a.actualAmount : a.expectedAmount;
-          valB = b.status === 'Pago' || b.status === 'Recebido' ? b.actualAmount : b.expectedAmount;
-        }
-
-        if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-        if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-        return 0;
+    // Filtro de texto (busca geral)
+    if (filter.trim()) {
+      const filterLower = filter.toLowerCase().trim();
+      filtered = filtered.filter(t => {
+        const categoryName = t.categoryId 
+          ? getCategoryName(t.categoryId) 
+          : (t.category || '');
+        const subcategoryName = t.subcategoryId 
+          ? getSubcategoryName(t.subcategoryId) 
+          : '';
+        
+        const description = (t.description || '').toLowerCase();
+        const entity = (t.entity || '').toLowerCase();
+        const category = (categoryName || '').toLowerCase();
+        const subcategory = (subcategoryName || '').toLowerCase();
+        
+        return (
+          description.includes(filterLower) ||
+          entity.includes(filterLower) ||
+          category.includes(filterLower) ||
+          subcategory.includes(filterLower)
+        );
       });
     }
 
-    const filterLower = filter.toLowerCase().trim();
-    const filtered = transactions.filter(t => {
-      const categoryName = t.categoryId 
-        ? getCategoryName(t.categoryId) 
-        : (t.category || '');
-      const subcategoryName = t.subcategoryId 
-        ? getSubcategoryName(t.subcategoryId) 
-        : '';
-      
-      const description = (t.description || '').toLowerCase();
-      const entity = (t.entity || '').toLowerCase();
-      const category = (categoryName || '').toLowerCase();
-      const subcategory = (subcategoryName || '').toLowerCase();
-      
-      return (
-        description.includes(filterLower) ||
-        entity.includes(filterLower) ||
-        category.includes(filterLower) ||
-        subcategory.includes(filterLower)
-      );
-    });
+    // Filtro por tipo
+    if (filterType !== 'all') {
+      filtered = filtered.filter(t => t.type === filterType);
+    }
 
+    // Filtro por status
+    if (filterStatus !== 'all') {
+      filtered = filtered.filter(t => t.status === filterStatus);
+    }
+
+    // Filtro por categoria
+    if (filterCategory !== 'all') {
+      const selectedCategory = settings.categories.find(c => c.id === filterCategory);
+      filtered = filtered.filter(t => {
+        if (t.categoryId === filterCategory) return true;
+        // Para dados legados sem categoryId, verificar pelo nome
+        if (!t.categoryId && selectedCategory && t.category) {
+          return t.category.toLowerCase() === selectedCategory.name.toLowerCase();
+        }
+        return false;
+      });
+    }
+
+    // Filtro por subcategoria
+    if (filterSubcategory !== 'all') {
+      filtered = filtered.filter(t => t.subcategoryId === filterSubcategory);
+    }
+
+    // Filtro por entidade
+    if (filterEntity !== 'all') {
+      filtered = filtered.filter(t => t.entity === filterEntity);
+    }
+
+    // Filtro por conta
+    if (filterAccount !== 'all') {
+      filtered = filtered.filter(t => t.accountId === filterAccount);
+    }
+
+    // Filtro por data (vencimento)
+    if (filterDateFrom) {
+      filtered = filtered.filter(t => t.dueDate >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      filtered = filtered.filter(t => t.dueDate <= filterDateTo);
+    }
+
+    // Filtro por valor
+    if (filterMinValue || filterMaxValue) {
+      filtered = filtered.filter(t => {
+        const value = t.status === 'Pago' || t.status === 'Recebido' ? t.actualAmount : t.expectedAmount;
+        const min = filterMinValue ? parseFloat(filterMinValue) : -Infinity;
+        const max = filterMaxValue ? parseFloat(filterMaxValue) : Infinity;
+        return value >= min && value <= max;
+      });
+    }
+
+    // Ordenação
     return filtered.sort((a, b) => {
       let valA: any = a[sortField as keyof Transaction];
       let valB: any = b[sortField as keyof Transaction];
@@ -223,7 +282,24 @@ const Transactions: React.FC<TransactionsProps> = ({
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [transactions, filter, sortField, sortDirection, settings.categories, subcategories]);
+  }, [
+    transactions, 
+    filter, 
+    filterType, 
+    filterStatus, 
+    filterCategory, 
+    filterSubcategory, 
+    filterEntity, 
+    filterAccount, 
+    filterDateFrom, 
+    filterDateTo, 
+    filterMinValue, 
+    filterMaxValue,
+    sortField, 
+    sortDirection, 
+    settings.categories, 
+    subcategories
+  ]);
 
   // --- Pagination Logic ---
   const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
@@ -340,30 +416,220 @@ const Transactions: React.FC<TransactionsProps> = ({
       </div>
 
       {/* Filters & Controls */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6 justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
-          <input 
-            type="text"
-            placeholder="Buscar por descrição, categoria, entidade..."
-            value={filter}
-            onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }} // Reset page on filter
-            className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
-          />
-        </div>
-        {viewMode === 'table' && (
+      <div className="space-y-4 mb-6">
+        {/* Busca Geral */}
+        <div className="flex flex-col md:flex-row gap-4 justify-between">
+          <div className="relative flex-1 max-w-md">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 ${subText}`} size={18} />
+            <input 
+              type="text"
+              placeholder="Buscar por descrição, categoria, entidade..."
+              value={filter}
+              onChange={(e) => { setFilter(e.target.value); setCurrentPage(1); }}
+              className={`w-full pl-10 pr-4 py-2 rounded-lg border focus:ring-2 outline-none ${inputBg} ${darkMode ? 'focus:ring-yellow-500/50' : 'focus:ring-blue-500/50'}`}
+            />
+          </div>
           <div className="flex items-center gap-2">
-             <span className={`text-sm ${subText}`}>Itens por página:</span>
-             <select 
-                value={itemsPerPage} 
-                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                className={`p-2 rounded-lg border outline-none ${inputBg}`}
-             >
-               <option value={10}>10</option>
-               <option value={25}>25</option>
-               <option value={50}>50</option>
-               <option value={100}>100</option>
-             </select>
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${darkMode ? 'border-zinc-700 hover:bg-zinc-800' : 'border-slate-300 hover:bg-slate-50'} ${showAdvancedFilters ? (darkMode ? 'bg-yellow-500/20 border-yellow-500/50' : 'bg-blue-50 border-blue-300') : ''}`}
+            >
+              <Filter size={18} className={subText} />
+              <span className={`text-sm font-medium ${textColor}`}>Filtros Avançados</span>
+              {showAdvancedFilters ? <ChevronUp size={16} className={subText} /> : <ChevronDown size={16} className={subText} />}
+            </button>
+            {viewMode === 'table' && (
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${subText}`}>Itens por página:</span>
+                <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                  className={`p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Filtros Avançados */}
+        {showAdvancedFilters && (
+          <div className={`p-4 rounded-xl border ${cardBg} space-y-4`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Tipo */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Tipo</label>
+                <select 
+                  value={filterType} 
+                  onChange={(e) => { setFilterType(e.target.value as TransactionType | 'all'); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todos</option>
+                  <option value="Entrada">Entrada</option>
+                  <option value="Saída">Saída</option>
+                </select>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Status</label>
+                <select 
+                  value={filterStatus} 
+                  onChange={(e) => { setFilterStatus(e.target.value as TransactionStatus | 'all'); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todos</option>
+                  <option value="A pagar">A pagar</option>
+                  <option value="Pago">Pago</option>
+                  <option value="A receber">A receber</option>
+                  <option value="Recebido">Recebido</option>
+                  <option value="Atrasado">Atrasado</option>
+                  <option value="Cancelado">Cancelado</option>
+                </select>
+              </div>
+
+              {/* Categoria */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Categoria</label>
+                <select 
+                  value={filterCategory} 
+                  onChange={(e) => { 
+                    setFilterCategory(e.target.value); 
+                    setFilterSubcategory('all'); // Reset subcategoria quando categoria muda
+                    setCurrentPage(1); 
+                  }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {settings.categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Subcategoria */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Subcategoria</label>
+                <select 
+                  value={filterSubcategory} 
+                  onChange={(e) => { setFilterSubcategory(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                  disabled={filterCategory === 'all'}
+                >
+                  <option value="all">Todas</option>
+                  {filterCategory !== 'all' && subcategories
+                    .filter(s => s.categoryId === filterCategory)
+                    .map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                </select>
+              </div>
+
+              {/* Entidade */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Entidade</label>
+                <select 
+                  value={filterEntity} 
+                  onChange={(e) => { setFilterEntity(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {entities.map(e => (
+                    <option key={e.id || e.name} value={e.name}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Conta */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Conta</label>
+                <select 
+                  value={filterAccount} 
+                  onChange={(e) => { setFilterAccount(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                >
+                  <option value="all">Todas</option>
+                  {accounts.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Data Vencimento - De */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Vencimento - De</label>
+                <input 
+                  type="date"
+                  value={filterDateFrom}
+                  onChange={(e) => { setFilterDateFrom(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+
+              {/* Data Vencimento - Até */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Vencimento - Até</label>
+                <input 
+                  type="date"
+                  value={filterDateTo}
+                  onChange={(e) => { setFilterDateTo(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+
+              {/* Valor Mínimo */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Valor Mínimo</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={filterMinValue}
+                  onChange={(e) => { setFilterMinValue(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+
+              {/* Valor Máximo */}
+              <div className="space-y-1">
+                <label className={`text-xs font-medium ${subText}`}>Valor Máximo</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={filterMaxValue}
+                  onChange={(e) => { setFilterMaxValue(e.target.value); setCurrentPage(1); }}
+                  className={`w-full p-2 rounded-lg border outline-none ${inputBg}`}
+                />
+              </div>
+            </div>
+
+            {/* Botão Limpar Filtros */}
+            <div className="flex justify-end pt-2 border-t border-zinc-800 dark:border-slate-200">
+              <button
+                onClick={() => {
+                  setFilter('');
+                  setFilterType('all');
+                  setFilterStatus('all');
+                  setFilterCategory('all');
+                  setFilterSubcategory('all');
+                  setFilterEntity('all');
+                  setFilterAccount('all');
+                  setFilterDateFrom('');
+                  setFilterDateTo('');
+                  setFilterMinValue('');
+                  setFilterMaxValue('');
+                  setCurrentPage(1);
+                }}
+                className={`px-4 py-2 text-sm rounded-lg border transition-colors ${darkMode ? 'border-zinc-700 hover:bg-zinc-800 text-zinc-300' : 'border-slate-300 hover:bg-slate-100 text-slate-600'}`}
+              >
+                Limpar Filtros
+              </button>
+            </div>
           </div>
         )}
       </div>
