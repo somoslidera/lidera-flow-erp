@@ -54,6 +54,16 @@ const App: React.FC = () => {
       const unsubscribe = authService.onAuthStateChanged(async (user) => {
         if (!isMounted) return;
         try {
+          // Log para debug da foto de perfil
+          if (user) {
+            console.log('🔍 User data from auth state:', {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              providerData: user.providerData
+            });
+          }
           setUser(user);
           setAuthLoading(false);
           // Salvar foto de perfil automaticamente quando usuário faz login

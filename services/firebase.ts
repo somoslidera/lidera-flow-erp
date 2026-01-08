@@ -29,6 +29,12 @@ try {
 
 export { db, auth };
 const googleProvider = new GoogleAuthProvider();
+// Solicitar escopos necessários para obter foto de perfil
+googleProvider.addScope('profile');
+googleProvider.addScope('email');
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 // Collection References
 export const TRANSACTIONS_COLLECTION = "transactions";
@@ -493,6 +499,15 @@ export const authService = {
   signInWithGoogle: async () => {
     try {
       const result = await signInWithPopup(auth, googleProvider);
+      // Log para debug da foto de perfil
+      console.log('🔍 User data after login:', {
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
+        photoURL: result.user.photoURL,
+        providerData: result.user.providerData
+      });
+      
       // Salvar foto de perfil automaticamente após login
       if (result.user) {
         await userService.saveOrUpdateUser(result.user);
